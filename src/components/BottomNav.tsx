@@ -10,9 +10,11 @@ function cn(...inputs: ClassValue[]) {
 interface BottomNavProps {
     activeTab: string;
     setActiveTab: (tab: string) => void;
+    /** R-15: Number of rejected actions since last visit to Actions tab */
+    rejectionCount?: number;
 }
 
-const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, rejectionCount = 0 }) => {
     const tabs = [
         { id: 'patient', label: 'Patient', icon: User },
         { id: 'actions', label: 'Actions', icon: Zap },
@@ -40,20 +42,25 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
                             className={cn(
-                                "flex w-20 min-h-11 flex-col items-center justify-center gap-0.5 transition-all duration-300",
-                                isActive ? "text-medical-600" : "text-slate-400"
+                                "flex w-20 min-h-11 flex-col items-center justify-center gap-0.5 transition-colors duration-200",
+                                isActive ? "text-medical-600" : "text-slate-500"
                             )}
                         >
+                            {/* R-10: transition-colors for smooth bg pill switch; R-15: relative for badge */}
                             <div className={cn(
-                                "p-1.5 rounded-xl transition-all duration-300",
+                                "relative p-1.5 rounded-xl transition-colors duration-200",
                                 isActive ? "bg-medical-50" : "bg-transparent"
                             )}>
                                 <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                                {/* R-15: Rejection badge on Actions tab */}
+                                {tab.id === 'actions' && rejectionCount > 0 && (
+                                    <span
+                                        className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"
+                                        aria-label={`${rejectionCount} protocol deviation${rejectionCount > 1 ? 's' : ''}`}
+                                    />
+                                )}
                             </div>
-                            <span className={cn(
-                                "text-[10px] font-bold uppercase tracking-widest",
-                                isActive ? "opacity-100" : "opacity-60"
-                            )}>
+                            <span className="text-[11px] font-bold uppercase tracking-widest transition-colors duration-200">
                                 {tab.label}
                             </span>
                         </button>

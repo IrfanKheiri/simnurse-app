@@ -4,9 +4,9 @@ import BottomNav from './components/BottomNav';
 import ContextualOverlay from './components/ContextualOverlay';
 import EvaluationSummary, { type ActionFeedback } from './components/EvaluationSummary';
 import Header from './components/Header';
+import CorrectActionWidget from './components/CorrectActionWidget';
 import IncorrectActionWidget from './components/IncorrectActionWidget';
 import LibraryScreen from './components/LibraryScreen';
-import MiniMonitor from './components/MiniMonitor';
 import OnboardingTour from './components/OnboardingTour';
 import PatientView from './components/PatientView';
 import StatusDashboard from './components/StatusDashboard';
@@ -18,7 +18,7 @@ import { calculateScenarioProgress } from './lib/scenarioProgress';
 import type { CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent } from './types/scenario';
 
 const APP_SHELL_CLASS =
-  'relative min-h-screen w-full max-w-[440px] box-border mx-auto border-x border-slate-100 bg-slate-50 font-sans shadow-2xl';
+  'relative flex flex-col min-h-screen w-full max-w-[440px] box-border mx-auto border-x border-slate-100 bg-slate-50 font-sans shadow-2xl';
 
 function cloneScenario(scenario: Scenario): Scenario {
   return structuredClone(scenario);
@@ -135,7 +135,7 @@ function buildSessionLogEvent(
   }
 }
 
-function AppInner() {
+function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active: boolean) => void }) {
   const { showToast } = useToast();
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -144,8 +144,11 @@ function AppInner() {
   const [showSummary, setShowSummary] = useState(false);
   const [tourKey, setTourKey] = useState(0);
   const [incorrectActionMessage, setIncorrectActionMessage] = useState<string | null>(null);
+  const [correctActionMessage, setCorrectActionMessage] = useState<string | null>(null);
   const [scenarioOutcome, setScenarioOutcome] = useState<'success' | 'failed' | 'manual'>('manual');
   const [evalActions, setEvalActions] = useState<ActionFeedback[]>([]);
+  // R-15: Track rejected actions for the BottomNav badge
+  const [rejectionCount, setRejectionCount] = useState(0);
   const [unlocked, setUnlocked] = useState<Record<'hr' | 'spo2' | 'bp' | 'rr', boolean>>({
     hr: false,
     spo2: false,
@@ -183,6 +186,7 @@ function AppInner() {
 
   const startScenarioRun = useCallback((scenario: Scenario) => {
     setUnlocked({ hr: false, spo2: false, bp: false, rr: false });
+    setRejectionCount(0);
     // FIX (ISSUE-05): Do NOT clear suppressedProcedures here. Learners who have
     // suppressed procedure guides should retain that preference across scenario runs.
     // They can reset manually via the "Reset Hidden Guides" button in ActionsScreen.
@@ -194,7 +198,8 @@ function AppInner() {
     setScenarioOutcome('manual');
     setEvalActions([]);
     setIncorrectActionMessage(null);
-  }, []);
+    onScenarioActiveChange(true);
+  }, [onScenarioActiveChange]);
 
   const handleEngineEvent = useCallback(
     async (event: EngineEvent) => {
@@ -202,6 +207,13 @@ function AppInner() {
 
       if (event.type === 'intervention' && event.rejected) {
         setIncorrectActionMessage(event.message);
+        // R-15: increment rejection badge counter
+        setRejectionCount(prev => prev + 1);
+        return;
+      }
+
+      if (event.type === 'intervention' && !event.rejected) {
+        setCorrectActionMessage(event.message);
         return;
       }
 
@@ -285,6 +297,7 @@ function AppInner() {
 
   const handleHelpClick = useCallback(() => {
     localStorage.removeItem('simnurse_onboarding_complete');
+    localStorage.removeItem('simnurse_welcome_dismissed');
     setTourKey((previousValue) => previousValue + 1);
   }, []);
 
@@ -303,7 +316,7 @@ function AppInner() {
     return (
       <div id="app-shell" className={APP_SHELL_CLASS}>
         <Header onHelpClick={handleHelpClick} />
-        <LibraryScreen onSelectScenario={startScenarioRun} />
+        <LibraryScreen key={tourKey} onSelectScenario={startScenarioRun} />
       </div>
     );
   }
@@ -324,11 +337,10 @@ function AppInner() {
             setEvalActions([]);
             setScenarioOutcome('manual');
             setActiveTab('patient');
+            onScenarioActiveChange(false);
           }}
-          onReviewProcedure={(actionId) => {
-            setShowSummary(false);
-            setReviewActionId(actionId);
-            setActiveTab('actions');
+          onReviewProcedure={(_actionId) => {
+            // Review is now handled inside EvaluationSummary via ProcedureGuide portal
           }}
         />
       </div>
@@ -337,44 +349,67 @@ function AppInner() {
 
   return (
     <div id="app-shell" className={APP_SHELL_CLASS}>
-      <Header onHelpClick={handleHelpClick} />
-      {vitals && <MiniMonitor state={vitals} unlocked={unlocked} />}
+      <Header onHelpClick={handleHelpClick} monitorState={vitals} unlocked={unlocked} />
       {vitals && <ContextualOverlay spo2={vitals.spo2} />}
       <IncorrectActionWidget message={incorrectActionMessage} onClose={() => setIncorrectActionMessage(null)} />
+      {correctActionMessage && (
+        <CorrectActionWidget
+          message={correctActionMessage}
+          onDismiss={() => setCorrectActionMessage(null)}
+        />
+      )}
 
       <main className="flex-1 overflow-y-auto pb-24">
         {activeTab === 'patient' && (
-          <PatientView onFinish={() => void handleManualFinish()} vitals={vitals} activeInterventions={activeInterventions} />
+          <div key="patient" className="tab-enter h-full">
+            {/* R-2: pass unlocked so badge opacity reflects vitals-unlock state */}
+            <PatientView onFinish={() => void handleManualFinish()} vitals={vitals} activeInterventions={activeInterventions} unlocked={unlocked.spo2 || unlocked.hr} />
+          </div>
         )}
         {activeTab === 'actions' && (
-          <ActionsScreen
-            applyIntervention={applyIntervention}
-            initialActionIdToReview={reviewActionId}
-            onReviewActionHandled={() => setReviewActionId(null)}
-          />
+          <div key="actions" className="tab-enter h-full">
+            <ActionsScreen
+              applyIntervention={applyIntervention}
+              initialActionIdToReview={reviewActionId}
+              onReviewActionHandled={() => setReviewActionId(null)}
+              activeInterventions={activeInterventions}
+              elapsedSec={elapsedSec}
+            />
+          </div>
         )}
         {activeTab === 'status' && (
-          <StatusDashboard
-            vitals={vitals}
-            unlocked={unlocked}
-            setUnlocked={setUnlocked}
-            scenarioProgressPct={scenarioProgressPct}
-            isLoading={vitals === null}
-            patient={activeScenario.patient}
-          />
+          <div key="status" className="tab-enter h-full">
+            <StatusDashboard
+              vitals={vitals}
+              unlocked={unlocked}
+              setUnlocked={setUnlocked}
+              scenarioProgressPct={scenarioProgressPct}
+              isLoading={vitals === null}
+              patient={activeScenario.patient}
+            />
+          </div>
         )}
       </main>
 
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      {/* R-15: pass rejectionCount; reset to 0 when user visits Actions tab */}
+      <BottomNav
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          if (tab === 'actions') setRejectionCount(0);
+          setActiveTab(tab);
+        }}
+        rejectionCount={rejectionCount}
+      />
       <OnboardingTour key={tourKey} activeTab={activeTab} setActiveTab={setActiveTab} scenarioActive={!!activeScenario} />
     </div>
   );
 }
 
 function App() {
+  const [scenarioActive, setScenarioActive] = useState(false);
   return (
-    <ToastProvider>
-      <AppInner />
+    <ToastProvider scenarioActive={scenarioActive}>
+      <AppInner onScenarioActiveChange={setScenarioActive} />
     </ToastProvider>
   );
 }

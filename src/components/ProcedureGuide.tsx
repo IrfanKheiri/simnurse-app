@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, Check, Activity, BookOpen } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Check, Activity, ImageOff } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -25,6 +26,17 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
     actionId
 }) => {
     const [dontShowAgain, setDontShowAgain] = useState(false);
+    // FIX (P1-F): Focus the close button when the modal opens
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            const timer = setTimeout(() => {
+                closeButtonRef.current?.focus();
+            }, 0);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -38,7 +50,7 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
         onClose();
     };
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[100] flex items-end justify-center">
             {/* Full-screen backdrop */}
             <div
@@ -73,6 +85,7 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
                                 </div>
                             </div>
                             <button
+                                ref={closeButtonRef}
                                 type="button"
                                 onClick={onClose}
                                 title="Close"
@@ -82,19 +95,10 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
                             </button>
                         </div>
 
-                        {/* Diagram Placeholder */}
-                        <div className="aspect-[16/7] w-full bg-slate-50 rounded-2xl mb-4 relative overflow-hidden border border-slate-100 group">
-                            <div className="absolute inset-0 bg-gradient-to-br from-medical-500/5 to-indigo-500/5" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="relative w-24 h-24 opacity-20">
-                                    <div className="absolute inset-0 border-4 border-medical-500 rounded-full animate-ping duration-[3000ms]" />
-                                    <div className="absolute inset-6 border-4 border-indigo-500 rounded-full animate-pulse" />
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-center gap-2 text-slate-400 relative z-10 h-full justify-center">
-                                <BookOpen size={28} strokeWidth={1.5} className="text-medical-400" />
-                                <span className="text-[10px] uppercase font-black tracking-[0.2em]">Procedural Diagram</span>
-                            </div>
+                        {/* R-5: Static diagram placeholder — animated rings removed */}
+                        <div className="aspect-[16/7] w-full bg-slate-100 rounded-xl mb-4 flex items-center justify-center gap-2 text-slate-400 text-xs">
+                            <ImageOff size={18} strokeWidth={1.5} />
+                            <span>Diagram not available</span>
                         </div>
 
                         {/* Step-by-Step Protocol */}
@@ -167,7 +171,8 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

@@ -175,9 +175,13 @@ export function calculateScenarioProgress(
       ), 0) / scenario.success_conditions.length
     : 0;
 
+  const rawScore = (protocolScore * protocolWeight) + (outcomeScore * outcomeWeight);
+  const elapsedContribution = Math.min(10, Math.floor(elapsedSec / 10) * 0.5);
+  const totalScore = Math.min(100, rawScore + elapsedContribution);
+
   return {
     protocolScore: Math.round(protocolScore),
     outcomeScore: Math.round(outcomeScore),
-    totalScore: Math.round((protocolScore * protocolWeight) + (outcomeScore * outcomeWeight)),
+    totalScore: Math.round(totalScore),
   };
 }

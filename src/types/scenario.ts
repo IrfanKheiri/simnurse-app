@@ -81,6 +81,7 @@ export interface ScenarioMeta {
   difficulty: ScenarioDifficulty;
   domain: ScenarioDomain;
   estimatedDurationSec: number;
+  protocol: 'BLS' | 'ACLS' | 'PALS';
 }
 
 export interface Scenario {

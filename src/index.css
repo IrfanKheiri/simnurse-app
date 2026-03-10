@@ -50,7 +50,30 @@ select {
   border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.dark .glass-morphism {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
+.tab-enter {
+  animation: fadeIn 200ms ease-out;
+}
+
+@keyframes revealValue {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.vital-reveal {
+  animation: revealValue 300ms ease-out;
+}
+
+/* R-8: Shake animation for rejected actions */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  30% { transform: translateX(6px); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+  90% { transform: translateX(2px); }
+}
+.shake { animation: shake 0.5s ease-in-out; }

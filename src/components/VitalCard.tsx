@@ -6,12 +6,30 @@ function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
+export type VitalColorKey = 'hr' | 'spo2' | 'bp' | 'rr';
+
+/** Maps each vital key to its hex token value (kept in sync with tailwind.config.js `vital.*`). */
+const VITAL_HEX: Record<VitalColorKey, string> = {
+    hr:   '#ff4b4b',
+    spo2: '#00e5ff',
+    bp:   '#d97706',
+    rr:   '#4ade80',
+};
+
+/** Pre-defined Tailwind classes per vital — enables tree-shaking by avoiding dynamic class construction. */
+const VITAL_CLASSES: Record<VitalColorKey, { iconBg: string; iconText: string; dotBg: string }> = {
+    hr:   { iconBg: 'bg-vital-hr/10',   iconText: 'text-vital-hr',   dotBg: 'bg-vital-hr' },
+    spo2: { iconBg: 'bg-vital-spo2/10', iconText: 'text-vital-spo2', dotBg: 'bg-vital-spo2' },
+    bp:   { iconBg: 'bg-vital-bp/10',   iconText: 'text-vital-bp',   dotBg: 'bg-vital-bp' },
+    rr:   { iconBg: 'bg-vital-rr/10',   iconText: 'text-vital-rr',   dotBg: 'bg-vital-rr' },
+};
+
 interface VitalCardProps {
     label: string;
     value: string | number;
     unit: string;
     icon: React.ElementType;
-    color: string;
+    colorKey: VitalColorKey;
     isLocked?: boolean;
     onUnlock?: () => void;
 }
@@ -21,21 +39,25 @@ const VitalCard: React.FC<VitalCardProps> = ({
     value,
     unit,
     icon: Icon,
-    color,
+    colorKey,
     isLocked = false,
     onUnlock
 }) => {
+    const hex = VITAL_HEX[colorKey];
+    const cls = VITAL_CLASSES[colorKey];
+
     return (
         <div
             className={cn(
                 "relative flex flex-col p-4 rounded-2xl glass-morphism shadow-premium transition-all duration-300",
-                isLocked ? "bg-slate-100/50 opacity-80" : "bg-white/80"
+                isLocked ? "bg-slate-100/50 opacity-80" : "bg-white/80",
+                !isLocked && "border-t-4"
             )}
-            style={!isLocked ? { borderTop: `4px solid ${color}` } : {}}
+            style={!isLocked ? { borderTopColor: hex } : {}}
         >
             <div className="flex justify-between items-start mb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</span>
-                <div className={cn("p-2 rounded-lg", isLocked ? "bg-slate-200" : "bg-opacity-10")} style={!isLocked ? { backgroundColor: `${color}20`, color: color } : {}}>
+                <div className={cn("p-2 rounded-lg", isLocked ? "bg-slate-200" : cn(cls.iconBg, cls.iconText))}>
                     {isLocked ? <Lock size={16} className="text-slate-400" /> : <Icon size={18} />}
                 </div>
             </div>
@@ -43,17 +65,17 @@ const VitalCard: React.FC<VitalCardProps> = ({
             <div className="mt-auto">
                 {isLocked ? (
                     <div className="flex flex-col gap-1">
-                        <span className="text-2xl font-bold text-slate-300 italic">--</span>
+                        <span className="text-2xl font-bold text-slate-400 italic">--</span>
                         <button
                             type="button"
                             onClick={onUnlock}
-                            className="text-[10px] text-medical-600 font-medium hover:underline focus:outline-none text-left"
+                            className="text-xs text-medical-700 font-semibold hover:underline focus:outline-none text-left min-h-[44px] flex items-center"
                         >
                             Perform Inspection to unlock
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-baseline gap-1">
+                    <div key="unlocked" className="flex items-baseline gap-1 vital-reveal">
                         <span className="text-3xl font-black text-slate-800 tracking-tight">{value}</span>
                         <span className="text-xs font-medium text-slate-400">{unit}</span>
                     </div>
@@ -63,8 +85,8 @@ const VitalCard: React.FC<VitalCardProps> = ({
             {!isLocked && (
                 <div className="absolute top-2 right-2">
                     <span className="flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }}></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: color }}></span>
+                        <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", cls.dotBg)}></span>
+                        <span className={cn("relative inline-flex rounded-full h-2 w-2", cls.dotBg)}></span>
                     </span>
                 </div>
             )}

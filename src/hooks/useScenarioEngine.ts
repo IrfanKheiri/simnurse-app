@@ -415,6 +415,12 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
     if (scenario.expected_sequence && state.sequenceIndex < scenario.expected_sequence.length) {
       const expectedId = scenario.expected_sequence[state.sequenceIndex];
       if (interventionId !== expectedId) {
+        const expectedLabel = expectedId
+          ? expectedId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+          : null;
+        const hintSuffix = expectedLabel
+          ? ` The next expected step is: ${expectedLabel}.`
+          : '';
         return {
           ...state,
           eventQueue: [
@@ -423,7 +429,7 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
               type: 'intervention',
               intervention_id: interventionId,
               rejected: true,
-              message: 'Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol.',
+              message: `Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol.${hintSuffix}`,
             },
           ],
         };
@@ -445,10 +451,63 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
       };
     }
 
+    const existingActiveIntervention = state.activeInterventions.find(
+      (intervention) => intervention.id === interventionId,
+    );
+
+    // Guard A: permanent action (no duration) — already applied, cannot repeat
+    if (existingActiveIntervention && existingActiveIntervention.duration_sec === undefined) {
+      return {
+        ...state,
+        eventQueue: [
+          ...state.eventQueue,
+          {
+            type: 'intervention',
+            intervention_id: interventionId,
+            rejected: true,
+            message: `Already applied and active for this scenario.`,
+          },
+        ],
+      };
+    }
+
+    // Guard B: timed action still on cooldown
+    if (
+      existingActiveIntervention &&
+      existingActiveIntervention.duration_sec !== undefined &&
+      state.elapsedSec - existingActiveIntervention.start_time < existingActiveIntervention.duration_sec
+    ) {
+      const remainingSec = Math.ceil(
+        existingActiveIntervention.duration_sec - (state.elapsedSec - existingActiveIntervention.start_time),
+      );
+      const nextTickSec = remainingSec + 3;
+      return {
+        ...state,
+        eventQueue: [
+          ...state.eventQueue,
+          {
+            type: 'intervention',
+            intervention_id: interventionId,
+            rejected: true,
+            message: `Already in progress. Available again in approximately ${remainingSec}–${nextTickSec}s.`,
+          },
+        ],
+      };
+    }
+
     const nextSequenceIndex =
       scenario.expected_sequence && state.sequenceIndex < scenario.expected_sequence.length
         ? state.sequenceIndex + 1
         : state.sequenceIndex;
+
+    const nextActiveInterventions = [
+      ...state.activeInterventions.filter((intervention) => intervention.id !== interventionId),
+      {
+        id: interventionId,
+        start_time: state.elapsedSec,
+        duration_sec: definition.duration_sec,
+      },
+    ];
 
     if (definition.success_chance !== undefined && definition.success_state) {
       if (roll <= definition.success_chance) {
@@ -456,8 +515,9 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         return {
           ...state,
           baseState: nextBaseState,
-          displayState: buildDisplayState(nextBaseState, scenario, state.activeInterventions),
+          displayState: buildDisplayState(nextBaseState, scenario, nextActiveInterventions),
           sequenceIndex: nextSequenceIndex,
+          activeInterventions: nextActiveInterventions,
           eventQueue: [
             ...state.eventQueue,
             {
@@ -473,6 +533,8 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
       return {
         ...state,
         sequenceIndex: nextSequenceIndex,
+        activeInterventions: nextActiveInterventions,
+        displayState: buildDisplayState(state.baseState, scenario, nextActiveInterventions),
         eventQueue: [
           ...state.eventQueue,
           {
@@ -484,15 +546,6 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         ],
       };
     }
-
-    const nextActiveInterventions = [
-      ...state.activeInterventions.filter((intervention) => intervention.id !== interventionId),
-      {
-        id: interventionId,
-        start_time: state.elapsedSec,
-        duration_sec: definition.duration_sec,
-      },
-    ];
 
     return {
       ...state,

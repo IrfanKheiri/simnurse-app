@@ -65,6 +65,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
     // (progress-bar, vitals-container) exist before we try to highlight them.
     useEffect(() => {
         if (!scenarioActive) return;
+        if (localStorage.getItem('simnurse_onboarding_complete') === 'true') return;
         setCurrentStepIndex(0);
         setIsVisible(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -192,10 +193,63 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
 
     return (
         <div className="fixed inset-0 z-[999] pointer-events-none">
-            {/* Overlay with a hole */}
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] pointer-events-auto" onClick={handleComplete} style={{
-                clipPath: `polygon(0% 0%, 0% 100%, ${targetRect.left}px 100%, ${targetRect.left}px ${targetRect.top}px, ${targetRect.right}px ${targetRect.top}px, ${targetRect.right}px ${targetRect.bottom}px, ${targetRect.left}px ${targetRect.bottom}px, ${targetRect.left}px 100%, 100% 100%, 100% 0%)`
-            }} />
+            {/* Four-panel overlay (Safari-safe — no clip-path) */}
+            {/* Top panel */}
+            <div
+                className="pointer-events-auto"
+                onClick={handleComplete}
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: targetRect.top,
+                    background: 'rgba(0,0,0,0.6)',
+                    zIndex: 40,
+                }}
+            />
+            {/* Bottom panel */}
+            <div
+                className="pointer-events-auto"
+                onClick={handleComplete}
+                style={{
+                    position: 'fixed',
+                    top: targetRect.bottom,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.6)',
+                    zIndex: 40,
+                }}
+            />
+            {/* Left panel */}
+            <div
+                className="pointer-events-auto"
+                onClick={handleComplete}
+                style={{
+                    position: 'fixed',
+                    top: targetRect.top,
+                    left: 0,
+                    width: targetRect.left,
+                    height: targetRect.height,
+                    background: 'rgba(0,0,0,0.6)',
+                    zIndex: 40,
+                }}
+            />
+            {/* Right panel */}
+            <div
+                className="pointer-events-auto"
+                onClick={handleComplete}
+                style={{
+                    position: 'fixed',
+                    top: targetRect.top,
+                    left: targetRect.right,
+                    right: 0,
+                    height: targetRect.height,
+                    background: 'rgba(0,0,0,0.6)',
+                    zIndex: 40,
+                }}
+            />
 
             {/* Tooltip */}
             <div

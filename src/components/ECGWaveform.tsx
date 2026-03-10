@@ -78,14 +78,17 @@ function peaY(t: number, midY: number): number {
 }
 
 // ─── Colour map per rhythm ────────────────────────────────────────────────────
+// R-12: Values mirror vital.rhythm.* tokens in tailwind.config.js
+// Canvas strokeStyle requires actual color values (not Tailwind classes), so the
+// hex strings are co-located here for clarity and kept in sync with the config.
 const RHYTHM_COLOUR: Record<HeartRhythm, string> = {
-  Sinus:       '#10b981', // emerald
-  Bradycardia: '#34d399', // lighter emerald
-  SVT:         '#f59e0b', // amber
-  VTach:       '#f97316', // orange
-  VFib:        '#ef4444', // red
-  Asystole:    '#6b7280', // grey
-  PEA:         '#a78bfa', // violet
+  Sinus:       '#10b981', // emerald   → vital.rhythm.sinus
+  Bradycardia: '#34d399', // lighter emerald → vital.rhythm.bradycardia
+  SVT:         '#f59e0b', // amber     → vital.rhythm.svt
+  VTach:       '#f97316', // orange    → vital.rhythm.vtach
+  VFib:        '#ef4444', // red       → vital.rhythm.vfib
+  Asystole:    '#6b7280', // grey      → vital.rhythm.asystole
+  PEA:         '#a78bfa', // violet    → vital.rhythm.pea
 };
 
 const RHYTHM_LABEL: Record<HeartRhythm, string> = {
@@ -218,7 +221,7 @@ const ECGWaveform: React.FC<ECGWaveformProps> = ({ rhythm, pulsePresent }) => {
 
   return (
     <div className="w-full bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-lg mb-6">
-      <canvas ref={canvasRef} className="w-full h-[120px]" />
+      <canvas ref={canvasRef} className="w-full h-[120px]" role="img" aria-label={label} />
       <div className="px-3 py-1.5 bg-slate-800/50 flex justify-between items-center">
         {/* Rhythm name with live colour indicator */}
         <div className="flex items-center gap-2">

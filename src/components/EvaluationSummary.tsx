@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen } from 'lucide-react';
+import ProcedureGuide from './ProcedureGuide';
+import { ACTIONS } from './ActionsScreen';
+import type { Action } from './ActionsScreen';
 
 export interface ActionFeedback {
     id: string;
@@ -143,8 +146,16 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
     outcome,
     onRestart,
     onReturnToLibrary,
-    onReviewProcedure
+    onReviewProcedure: _onReviewProcedure
 }) => {
+    const [reviewAction, setReviewAction] = useState<Action | null>(null);
+
+    // R-4: Cleanup reviewAction on unmount so ProcedureGuide portal closes
+    React.useEffect(() => {
+        return () => {
+            setReviewAction(null);
+        };
+    }, []);
     /** FIX (H8): Outcome-dependent header colour */
     const outcomeColor =
         outcome === 'success' ? 'text-emerald-600' :
@@ -188,6 +199,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                         <div className="absolute -bottom-8 -right-8 opacity-10 pointer-events-none">
                             <Activity size={120} strokeWidth={1} />
                         </div>
+                        {/* R-7: font-medium italic standardized (matches PatientView clinical note) */}
                         <p className="text-sm font-medium leading-relaxed italic relative z-10">
                             "{clinicalConclusion}"
                         </p>
@@ -202,8 +214,19 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                         </div>
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Timeline of Interventions</h3>
                     </header>
-                    <Timeline actions={actions} onReviewProcedure={onReviewProcedure} />
+                    <Timeline actions={actions} onReviewProcedure={(id) => setReviewAction(ACTIONS.find(a => a.id === id) ?? null)} />
                 </section>
+
+                {reviewAction && (
+                    <ProcedureGuide
+                        isOpen={!!reviewAction}
+                        onClose={() => setReviewAction(null)}
+                        onConfirm={() => setReviewAction(null)}
+                        title={reviewAction.label}
+                        steps={reviewAction.steps}
+                        actionId={reviewAction.id}
+                    />
+                )}
 
                 {/* Action Buttons */}
                 <nav className="flex flex-col gap-3 mt-4">

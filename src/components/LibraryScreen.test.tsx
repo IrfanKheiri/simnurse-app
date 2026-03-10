@@ -78,6 +78,7 @@ describe('LibraryScreen', () => {
     render(<LibraryScreen onSelectScenario={mockSelectFn} />);
 
     await userEvent.click(screen.getByText('Adult VFib Arrest (Witnessed)'));
+    await userEvent.click(screen.getByRole('button', { name: /Begin/i }));
     expect(mockSelectFn).toHaveBeenCalledTimes(1);
     expect(mockSelectFn).toHaveBeenCalledWith(expect.objectContaining({ scenario_id: 'scenario-1' }));
   });
@@ -89,3 +90,4 @@ describe('LibraryScreen', () => {
     expect(screen.getByText(/Select a clinical case to begin/i)).toBeInTheDocument();
   });
 });
+

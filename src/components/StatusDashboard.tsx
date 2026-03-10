@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ECGWaveform from './ECGWaveform';
 import VitalCard from './VitalCard';
-import { Activity, Wind, Droplets, Heart, Zap, Search, AlertTriangle } from 'lucide-react';
+import { Activity, Wind, Droplets, Heart, Zap, Search, AlertTriangle, Info, X } from 'lucide-react';
 
 import type { PatientDemographics, PatientState } from '../types/scenario';
 
@@ -24,6 +24,10 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
     isLoading = true,
     patient,
 }) => {
+
+    const [hintDismissed, setHintDismissed] = useState(() => localStorage.getItem('simnurse_inspection_hint_dismissed') === 'true');
+
+    const allUnlocked = Object.values(unlocked).every(v => v);
 
     const handleUnlock = (key: string) => {
         setUnlocked(prev => ({ ...prev, [key]: true }));
@@ -86,7 +90,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                         <Activity size={14} className="text-medical-500" />
                         Vital Signs
                     </h2>
-                    {!Object.values(unlocked).every(v => v) && (
+                    {!allUnlocked && (
                         <button
                             id="quick-inspection-btn"
                             type="button"
@@ -99,6 +103,26 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                     )}
                 </header>
 
+                {!allUnlocked && !hintDismissed && (
+                    <div className="mb-3 flex items-start gap-3 rounded-xl bg-medical-50 border border-medical-100 px-4 py-3">
+                        <Info size={14} className="text-medical-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-medical-700 leading-relaxed flex-1">
+                            Tap each vital card or use <strong>Quick Inspection</strong> above to reveal live readings.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                localStorage.setItem('simnurse_inspection_hint_dismissed', 'true');
+                                setHintDismissed(true);
+                            }}
+                            className="text-medical-500 hover:text-medical-700 shrink-0"
+                            aria-label="Dismiss hint"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
+
                 {/* Vitals Grid */}
                 <section id="vitals-container" className="grid grid-cols-2 gap-4">
                     <VitalCard
@@ -106,7 +130,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                         value={vitals.hr}
                         unit="bpm"
                         icon={Heart}
-                        color="#ff4b4b"
+                        colorKey="hr"
                         isLocked={!unlocked.hr}
                         onUnlock={() => handleUnlock('hr')}
                     />
@@ -115,7 +139,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                         value={vitals.spo2}
                         unit="%"
                         icon={Droplets}
-                        color="#00e5ff"
+                        colorKey="spo2"
                         isLocked={!unlocked.spo2}
                         onUnlock={() => handleUnlock('spo2')}
                     />
@@ -124,7 +148,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                         value={vitals.bp}
                         unit="mmHg"
                         icon={Activity}
-                        color="#d97706"
+                        colorKey="bp"
                         isLocked={!unlocked.bp}
                         onUnlock={() => handleUnlock('bp')}
                     />
@@ -133,7 +157,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                         value={vitals.rr}
                         unit="/min"
                         icon={Wind}
-                        color="#4ade80"
+                        colorKey="rr"
                         isLocked={!unlocked.rr}
                         onUnlock={() => handleUnlock('rr')}
                     />

@@ -7,6 +7,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        indigo: {
+          50:  '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#4f46e5',
+          700: '#4338ca',
+          800: '#3730a3',
+          900: '#312e81',
+        },
         medical: {
           50: '#f0f9fa',
           100: '#dcf1f2',
@@ -26,6 +38,16 @@ export default {
           bp: '#ffca28',
           rr: '#4ade80',
           temp: '#fb923c',
+          // R-12: ECG rhythm color tokens (values mirror RHYTHM_COLOUR in ECGWaveform.tsx)
+          rhythm: {
+            sinus:        '#10b981',
+            bradycardia:  '#34d399',
+            svt:          '#f59e0b',
+            vtach:        '#f97316',
+            vfib:         '#ef4444',
+            asystole:     '#6b7280',
+            pea:          '#a78bfa',
+          }
         }
       },
       borderRadius: {

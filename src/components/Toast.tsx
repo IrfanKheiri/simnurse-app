@@ -36,7 +36,7 @@ const VARIANTS: Record<
   },
 };
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({ children, scenarioActive = false }: { children: React.ReactNode; scenarioActive?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -70,7 +70,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         aria-live="polite"
         aria-atomic="false"
-        className="pointer-events-none fixed left-1/2 top-[72px] z-[900] flex w-full max-w-[440px] -translate-x-1/2 flex-col gap-2 px-4"
+        className={`pointer-events-none fixed left-1/2 z-[900] flex w-full max-w-[440px] -translate-x-1/2 flex-col gap-2 px-4 ${scenarioActive ? 'top-[108px]' : 'top-[72px]'}`}
       >
         {toasts.map((toast) => {
           const variant = VARIANTS[toast.variant];

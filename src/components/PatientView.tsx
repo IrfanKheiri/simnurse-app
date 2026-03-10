@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
-import { LogOut, Activity, Wind, AlertCircle, Zap, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { LogOut, Activity, Wind, AlertCircle, Zap, AlertTriangle } from 'lucide-react';
 import type { PatientState, ActiveIntervention } from '../types/scenario';
 
 interface PatientViewProps {
     onFinish: () => void;
     vitals: PatientState | null;
     activeInterventions: ActiveIntervention[];
+    /** R-2: Whether vitals have been unlocked via StatusDashboard inspection */
+    unlocked?: boolean;
 }
 
 /** FIX (H11): Generate contextual clinical narrative from live vitals */
@@ -103,40 +106,51 @@ function buildClinicalNote(vitals: PatientState | null): string {
 const patientIllustrationSrc = `${import.meta.env.BASE_URL}patient-illustration.png`;
 
 /** FIX (L19): Confirmation dialog before ending the scenario */
-const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }> = ({ onConfirm, onCancel }) => (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center px-6">
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCancel} />
-        <div className="relative bg-white rounded-3xl p-6 shadow-2xl w-full max-w-[340px] animate-in zoom-in-95 fade-in duration-200">
-            <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-red-50 rounded-xl">
-                    <HelpCircle size={20} className="text-red-500" />
-                </div>
-                <h2 className="text-base font-black text-slate-800">End Scenario?</h2>
-            </div>
-            <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                This will stop the simulation and take you to the debrief. You cannot undo this action.
-            </p>
-            <div className="flex gap-3">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="flex-1 py-3 rounded-2xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all"
-                >
-                    Continue
-                </button>
-                <button
-                    type="button"
-                    onClick={onConfirm}
-                    className="flex-[2] py-3 rounded-2xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-100"
-                >
-                    End &amp; Debrief
-                </button>
-            </div>
-        </div>
-    </div>
-);
+/** FIX (P1-F): Focus the Continue button when the dialog mounts */
+const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }> = ({ onConfirm, onCancel }) => {
+    const continueButtonRef = useRef<HTMLButtonElement>(null);
 
-const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInterventions }) => {
+    useEffect(() => {
+        continueButtonRef.current?.focus();
+    }, []);
+
+    return createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center px-6">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative bg-white rounded-3xl p-6 shadow-2xl w-full max-w-[340px] animate-in zoom-in-95 fade-in duration-200">
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-red-50 rounded-xl">
+                        <AlertTriangle size={20} className="text-red-500" />
+                    </div>
+                    <h2 className="text-base font-black text-slate-800">End Scenario?</h2>
+                </div>
+                <p className="text-sm text-slate-500 leading-relaxed mb-6">
+                    This will stop the simulation and take you to the debrief. You cannot undo this action.
+                </p>
+                <div className="flex gap-3">
+                    <button
+                        ref={continueButtonRef}
+                        type="button"
+                        onClick={onCancel}
+                        className="flex-1 py-3 rounded-2xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all"
+                    >
+                        Continue
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onConfirm}
+                        className="flex-[2] py-3 rounded-2xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-100"
+                    >
+                        End &amp; Debrief
+                    </button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInterventions, unlocked = false }) => {
     const [showEndConfirm, setShowEndConfirm] = useState(false);
 
     const o2Saturation = vitals?.spo2 ?? 100;
@@ -146,48 +160,66 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
 
     const clinicalNote = buildClinicalNote(vitals);
 
-    return (
-        <section id="patient-view-container" className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
-            {/* Header Bar */}
-            <header id="patient-view-header" className="p-6 pb-2 z-10 flex justify-between items-start">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-800 tracking-tight">Patient View</h1>
-                    <p className="text-sm text-slate-500 font-medium flex items-center gap-2">
-                        Status:{' '}
-                        {isArrest ? (
-                            <span className="text-red-600 flex items-center gap-1 animate-pulse font-bold">
-                                <AlertCircle size={14} /> CARDIAC ARREST
-                            </span>
-                        ) : isCyanotic ? (
-                            <span className="text-red-500 flex items-center gap-1 animate-pulse">
-                                <AlertCircle size={14} /> Severe Hypoxia
-                            </span>
-                        ) : (
-                            'Stable'
-                        )}
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    onClick={() => setShowEndConfirm(true)}
-                    className="p-3 bg-red-50 text-red-600 rounded-2xl border border-red-100 active:scale-95 transition-all flex items-center gap-2"
-                    title="Finish Scenario"
-                >
-                    <LogOut size={18} />
-                    <span className="text-xs font-bold uppercase tracking-wider">End</span>
-                </button>
-            </header>
+    // FIX (P1-C): Cap displayed badges at 3, show +N more pill for overflow
+    const MAX_BADGES = 3;
+    const visibleInterventions = activeInterventions.slice(0, MAX_BADGES);
+    const overflowCount = activeInterventions.length - MAX_BADGES;
 
-            {activeInterventions.length > 0 && (
-                <div id="active-interventions-list" className="absolute top-4 left-4 z-20 flex flex-col gap-2">
-                    {activeInterventions.map(action => (
-                        <div key={action.id} className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full shadow-md animate-in fade-in slide-in-from-left-2">
-                            <Zap size={14} className="animate-pulse" />
-                            <span className="text-xs font-bold tracking-wide">{action.id.replace(/_/g, ' ').toUpperCase()}</span>
-                        </div>
-                    ))}
+    return (
+        // FIX (P1-G): Add aria-label to the section
+        <section id="patient-view-container" aria-label="Patient View" className="flex flex-col bg-slate-50">
+            {/* Header Bar */}
+            {/* FIX (P1-C): Active interventions moved here as a third in-flow row */}
+            <header id="patient-view-header" className="p-6 pb-2 z-10">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-2xl font-black text-slate-800 tracking-tight">Patient View</h1>
+                        <p className="text-sm text-slate-500 font-medium flex items-center gap-2">
+                            Status:{' '}
+                            {isArrest ? (
+                                <span className="text-red-600 flex items-center gap-1 animate-pulse font-bold">
+                                    <AlertCircle size={14} /> CARDIAC ARREST
+                                </span>
+                            ) : isCyanotic ? (
+                                <span className="text-red-500 flex items-center gap-1 animate-pulse">
+                                    <AlertCircle size={14} /> Severe Hypoxia
+                                </span>
+                            ) : (
+                                'Stable'
+                            )}
+                        </p>
+                    </div>
+                    {/* R-6: End button upgraded to solid red for clear destructive CTA */}
+                    {/* FIX (P1-G): Add aria-label to End button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowEndConfirm(true)}
+                        className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-2xl active:scale-95 transition-all flex items-center gap-2"
+                        title="Finish Scenario"
+                        aria-label="End scenario and view debrief"
+                    >
+                        <LogOut size={18} />
+                        <span className="text-xs font-bold uppercase tracking-wider">End</span>
+                    </button>
                 </div>
-            )}
+
+                {/* FIX (P1-C): In-flow interventions row — horizontal flex-wrap, capped at 3 + overflow */}
+                {activeInterventions.length > 0 && (
+                    <div id="active-interventions-list" className="flex flex-wrap gap-2 mt-2">
+                        {visibleInterventions.map(action => (
+                            <div key={action.id} className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full shadow-md animate-in fade-in slide-in-from-left-2">
+                                <Zap size={14} className="animate-pulse" />
+                                <span className="text-xs font-bold tracking-wide">{action.id.replace(/_/g, ' ').toUpperCase()}</span>
+                            </div>
+                        ))}
+                        {overflowCount > 0 && (
+                            <div className="flex items-center gap-1 bg-slate-400/80 text-white px-3 py-1.5 rounded-full shadow-md">
+                                <span className="text-xs font-bold tracking-wide">+{overflowCount} more</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </header>
 
             {/* Main Illustration Area */}
             <article id="patient-illustration-area" className="flex-1 relative flex items-center justify-center p-4">
@@ -214,7 +246,8 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
                 </div>
 
                 {/* Floating Vitals Indicators */}
-                <aside id="floating-vitals-badges" className="absolute top-12 right-4 space-y-3 z-20 md:-right-2">
+                {/* R-2: opacity-70 when vitals are not yet unlocked to hint at the unlock mechanic */}
+                <aside id="floating-vitals-badges" className={`absolute top-12 right-4 space-y-3 z-20 transition-opacity duration-500 ${unlocked ? 'opacity-100' : 'opacity-70'}`}>
                     <div className={`p-4 rounded-2xl border backdrop-blur-md shadow-xl transition-all duration-500 ${isCyanotic ? 'bg-red-500 text-white border-red-400 animate-pulse' : 'bg-white/90 text-slate-800 border-slate-100'}`}>
                         <div className="flex items-center gap-2 mb-1">
                             <Wind size={16} />
@@ -234,9 +267,11 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
             </article>
 
             {/* FIX (H11): Dynamic clinical notes based on live vitals */}
-            <div id="clinical-notes-container" className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full px-12 z-10">
+            {/* FIX (P1-B): Converted from absolute to in-flow, sits naturally below illustration */}
+            <div id="clinical-notes-container" className="w-full px-4 pb-4">
                 <div className={`backdrop-blur-md rounded-2xl p-4 border shadow-premium text-center transition-all duration-500 ${isArrest ? 'bg-red-50/90 border-red-200' : 'bg-white/80 border-white'}`}>
-                    <p className={`text-xs font-bold italic leading-relaxed ${isArrest ? 'text-red-700' : 'text-slate-600'}`}>
+                    {/* R-7: Standardized to font-medium italic (font-bold italic is harder to read at 14px) */}
+                    <p className={`text-xs font-medium italic leading-relaxed ${isArrest ? 'text-red-700' : 'text-slate-600'}`}>
                         {clinicalNote}
                     </p>
                 </div>
