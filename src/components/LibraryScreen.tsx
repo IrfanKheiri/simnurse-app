@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import type { Scenario } from '../types/scenario';
-import { Play, Activity, Clock, ShieldAlert, HeartPulse, Stethoscope, BriefcaseMedical, X, BookOpen, Zap, Gauge, HeartOff, Flame, User, Heart, Wind, Droplets, Search } from 'lucide-react';
+import { Play, Activity, Clock, ShieldAlert, HeartPulse, Stethoscope, BriefcaseMedical, X, BookOpen, Zap, Gauge, HeartOff, Flame, User, Heart, Wind, Droplets, Search, Trash2 } from 'lucide-react';
 
 const WELCOME_DISMISSED_KEY = 'simnurse_welcome_dismissed';
 
@@ -185,6 +185,15 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
     setPreviewScenario(scenario);
   };
 
+  const clearScenarioHistory = async (scenarioId: string, e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation(); // don't open the preview modal
+    await db.sessionLogs.where('scenario_id').equals(scenarioId).and((log) => log.event_type === 'completion').delete();
+  };
+
+  const clearAllHistory = async () => {
+    await db.sessionLogs.where('event_type').equals('completion').delete();
+  };
+
   const handleConfirmStart = () => {
     if (previewScenario) {
       onSelectScenario(previewScenario);
@@ -225,7 +234,21 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
   return (
     <main id="library-screen-container" className="flex flex-col h-full bg-slate-50 overflow-hidden">
       <header id="library-screen-header" className="sticky top-0 z-20 border-b border-slate-100 bg-white p-6 pb-4 shadow-sm">
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Simulations</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Simulations</h1>
+          {recentLogs && recentLogs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void clearAllHistory()}
+              className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-red-500 transition-colors"
+              title="Clear all session history"
+              aria-label="Clear all scenario history"
+            >
+              <Trash2 size={13} />
+              Clear all
+            </button>
+          )}
+        </div>
         <p className="text-sm font-medium text-slate-500">
           Select a clinical case to begin.
         </p>
@@ -393,6 +416,18 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
                                 {outcome === 'success' ? '✓ Pass' : '✗ Fail'}
                               </span>
                             ))}
+                            {/* span used intentionally: nested <button> inside card <button> is invalid HTML */}
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => void clearScenarioHistory(scenario.scenario_id, e)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') void clearScenarioHistory(scenario.scenario_id, e); }}
+                              className="ml-0.5 cursor-pointer text-slate-300 hover:text-red-400 transition-colors"
+                              title="Clear history for this scenario"
+                              aria-label={`Clear history for ${scenario.title}`}
+                            >
+                              <X size={11} />
+                            </span>
                           </div>
                         );
                       })()}

@@ -70,7 +70,7 @@ export function ToastProvider({ children, scenarioActive = false }: { children: 
       <div
         aria-live="polite"
         aria-atomic="false"
-        className={`pointer-events-none fixed left-1/2 z-[900] flex w-full max-w-[440px] -translate-x-1/2 flex-col gap-2 px-4 ${scenarioActive ? 'top-[108px]' : 'top-[72px]'}`}
+        className={`pointer-events-none fixed left-1/2 z-[900] flex w-full max-w-[440px] -translate-x-1/2 flex-col gap-2 px-4 ${scenarioActive ? 'top-[144px]' : 'top-[72px]'}`}
       >
         {toasts.map((toast) => {
           const variant = VARIANTS[toast.variant];

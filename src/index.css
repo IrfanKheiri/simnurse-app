@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Scrollbar utility used by UrgencyStrip horizontal scroll */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/WebKit */
+}
+
 :root {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color-scheme: light;

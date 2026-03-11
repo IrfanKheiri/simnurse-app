@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ActiveIntervention, AdjustableVital, Condition, CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent } from './types/scenario';
+import CheatOverlay from './components/CheatOverlay';
 import ActionsScreen from './components/ActionsScreen';
 import BottomNav from './components/BottomNav';
 import ContextualOverlay from './components/ContextualOverlay';
@@ -15,7 +17,6 @@ import { useToast } from './components/toast-context';
 import { useScenarioEngine } from './hooks/useScenarioEngine';
 import { db } from './lib/db';
 import { calculateScenarioProgress } from './lib/scenarioProgress';
-import type { CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent } from './types/scenario';
 
 const APP_SHELL_CLASS =
   'relative flex flex-col min-h-screen w-full max-w-[440px] box-border mx-auto border-x border-slate-100 bg-slate-50 font-sans shadow-2xl';
@@ -79,6 +80,211 @@ const INTERVENTION_LABELS: Record<string, string> = {
   left_uterine_displacement: 'Left Uterine Displacement (LUD)',
   perimortem_csection: 'Perimortem Cesarean Delivery (PMCD)',
 };
+
+// ─── Cyclic interventions — must be reapplied when they expire ───────────────
+// Drugs and one-shot procedures are excluded (their expiry is not actionable).
+const CYCLIC_INTERVENTIONS = new Set([
+  'cpr',
+  'cpr_30_2',
+  'cpr_30_2_child',
+  'cpr_30_2_infant_2finger',
+  'cpr_15_2_child',
+  'cpr_15_2_infant_2thumb',
+  'resume_cpr_post_shock',
+  'rescue_breathing',
+  'rescue_breathing_child',
+  'rescue_breathing_infant',
+  'bag_valve_mask',
+  'bag_valve_mask_child',
+  'bag_valve_mask_infant',
+  'transcutaneous_pacing',
+]);
+
+// ─── UrgencyStrip types & helpers ──────────────────────────────────────────
+
+export type UrgencyLevel = 'low' | 'medium' | 'critical';
+
+export interface UrgencyItem {
+  key: string;
+  type: 'failure' | 'intervention';
+  label: string;
+  remainingSec: number;
+  urgency: UrgencyLevel;
+}
+
+const INTERVENTION_SHORT_LABELS: Record<string, string> = {
+  cpr: 'CPR',
+  cpr_30_2: 'CPR',
+  cpr_30_2_child: 'CPR',
+  cpr_30_2_infant_2finger: 'CPR',
+  cpr_15_2_child: 'CPR',
+  cpr_15_2_infant_2thumb: 'CPR',
+  defibrillate: 'Defib',
+  defibrillate_pediatric: 'Defib',
+  aed_attach: 'AED',
+  aed_shock: 'Shock',
+  synchronized_cardioversion: 'Cardio',
+  rescue_breathing: 'RB',
+  rescue_breathing_child: 'RB',
+  rescue_breathing_infant: 'RB',
+  intubation: 'Intub',
+  oxygen_nrb: 'O₂',
+  high_flow_oxygen: 'O₂',
+  bag_valve_mask: 'BVM',
+  bag_valve_mask_child: 'BVM',
+  bag_valve_mask_infant: 'BVM',
+  epinephrine_1mg: 'Epi',
+  epinephrine_im_0_5mg: 'Epi',
+  epinephrine_im_pediatric: 'Epi',
+  epinephrine_peds_01mgkg: 'Epi',
+  amiodarone_300mg: 'Amio',
+  amiodarone_150mg_stable: 'Amio',
+  amiodarone_peds_5mgkg: 'Amio',
+  adenosine_6mg: 'Adeno',
+  atropine_0_5mg: 'Atrop',
+  naloxone_intranasal_4mg: 'Narcan',
+  naloxone_intranasal_repeat: 'Narcan',
+  naloxone_im_repeat: 'Narcan',
+  aspirin_324mg: 'ASA',
+  ticagrelor_180mg: 'Tica',
+  nitroglycerin_04mg: 'NTG',
+  heparin_bolus: 'Hep',
+  methylprednisolone_iv: 'MP',
+  alteplase: 'tPA',
+  labetalol_10mg: 'Label',
+  normal_saline_bolus: 'NS',
+  establish_iv: 'IV',
+  transcutaneous_pacing: 'TCP',
+  left_uterine_displacement: 'LUD',
+  perimortem_csection: 'PMCD',
+  recovery_position: 'Recov',
+};
+
+function getInterventionShortLabel(id: string): string {
+  return INTERVENTION_SHORT_LABELS[id] ?? id.slice(0, 6).toUpperCase();
+}
+
+function getInterventionUrgency(remainingSec: number): UrgencyLevel {
+  if (remainingSec < 10) return 'critical';
+  if (remainingSec < 30) return 'medium';
+  return 'low';
+}
+
+function getFailureConditionLabel(condition: Condition, remainingSec: number): string {
+  const secs = Math.ceil(remainingSec);
+  if (condition.elapsedSecGte !== undefined && !condition.vital) {
+    return `⏱ ~${secs}s left`;
+  }
+  if (condition.vital) {
+    const vitalName = condition.vital === 'pulsePresent' ? 'Pulse' : condition.vital.toUpperCase();
+    return `⚠ ${vitalName} ~${secs}s`;
+  }
+  return `⚠ ~${secs}s`;
+}
+
+function computeUrgencyItems(
+  activeScenario: Scenario | null,
+  failureHoldStarts: Record<string, number>,
+  elapsedSec: number,
+  activeInterventions: ActiveIntervention[],
+): UrgencyItem[] {
+  const items: UrgencyItem[] = [];
+
+  if (!activeScenario) return items;
+
+  // ── Failure proximity pills ──────────────────────────────────────────────
+  for (const [index, condition] of activeScenario.failure_conditions.entries()) {
+    // Hold-based vital condition
+    if (condition.durationSec !== undefined && condition.durationSec > 3) {
+      const holdKey = `failure-${index}`;
+      const holdStart = failureHoldStarts[holdKey];
+      if (holdStart !== undefined) {
+        const holdElapsed = elapsedSec - holdStart;
+        const warnThreshold = Math.max(condition.durationSec / 2, condition.durationSec - 12);
+        if (holdElapsed >= warnThreshold) {
+          const remainingSec = condition.durationSec - holdElapsed;
+          if (remainingSec > 0) {
+            items.push({
+              key: `fail-hold-${index}`,
+              type: 'failure',
+              label: getFailureConditionLabel(condition, remainingSec),
+              remainingSec,
+              urgency: remainingSec < 10 ? 'critical' : 'medium',
+            });
+          }
+        }
+      }
+    }
+
+    // Elapsed-time cutoff condition
+    if (condition.elapsedSecGte !== undefined && !condition.vital) {
+      const warnFrom = condition.elapsedSecGte - 60;
+      if (elapsedSec >= warnFrom) {
+        const remainingSec = condition.elapsedSecGte - elapsedSec;
+        if (remainingSec > 0) {
+          items.push({
+            key: `fail-elapsed-${index}`,
+            type: 'failure',
+            label: getFailureConditionLabel(condition, remainingSec),
+            remainingSec,
+            urgency: remainingSec < 15 ? 'critical' : 'medium',
+          });
+        }
+      }
+    }
+  }
+
+  // ── Intervention countdown pills (timed only) ────────────────────────────
+  for (const intervention of activeInterventions) {
+    if (intervention.duration_sec === undefined) continue;
+    const remainingSec = intervention.duration_sec - (elapsedSec - intervention.start_time);
+    if (remainingSec <= 0) continue;
+    items.push({
+      key: `iv-${intervention.id}`,
+      type: 'intervention',
+      label: getInterventionShortLabel(intervention.id),
+      remainingSec,
+      urgency: getInterventionUrgency(remainingSec),
+    });
+  }
+
+  // Sort: failure pills first, then by remaining time ascending
+  items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'failure' ? -1 : 1;
+    return a.remainingSec - b.remainingSec;
+  });
+
+  return items;
+}
+
+function computeVitalDecayRates(
+  activeScenario: Scenario | null,
+  activeInterventions: ActiveIntervention[],
+): Partial<Record<AdjustableVital, number>> {
+  if (!activeScenario) return {};
+
+  const rates: Partial<Record<AdjustableVital, number>> = {};
+
+  // Baseline progressions
+  for (const prog of activeScenario.baseline_progressions) {
+    const perSec = prog.modifier / prog.interval_sec;
+    rates[prog.vital] = (rates[prog.vital] ?? 0) + perSec;
+  }
+
+  // Active intervention rate_modifiers
+  for (const intervention of activeInterventions) {
+    const definition = activeScenario.interventions[intervention.id];
+    if (!definition?.rate_modifiers) continue;
+    for (const rm of definition.rate_modifiers) {
+      const perSec = rm.modifier / rm.interval_sec;
+      rates[rm.vital] = (rates[rm.vital] ?? 0) + perSec;
+    }
+  }
+
+  return rates;
+}
+
+// ─── End UrgencyStrip helpers ───────────────────────────────────────────────
 
 function prettifyInterventionId(interventionId: string): string {
   return INTERVENTION_LABELS[interventionId] ??
@@ -155,6 +361,16 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     bp: false,
     rr: false,
   });
+
+  // ── Cheat mode ──────────────────────────────────────────────────────────────
+  const [cheatModeEnabled, setCheatModeEnabled] = useState(false);
+  const [cheatVisible, setCheatVisible] = useState(false);
+
+  useEffect(() => {
+    void fetch(`${import.meta.env.BASE_URL}.cheat_mode`, { method: 'HEAD' }).then((res) => {
+      if (res.ok) setCheatModeEnabled(true);
+    }).catch(() => {/* file absent or network error — stay disabled */});
+  }, []);
 
   const activeScenarioRef = useRef<Scenario | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -233,7 +449,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     [persistEvent, showToast],
   );
 
-  const { state: vitals, status, elapsedSec, applyIntervention, activeInterventions, sequenceIndex, successHoldStarts } = useScenarioEngine(
+  const { state: vitals, status, elapsedSec, applyIntervention, activeInterventions, sequenceIndex, successHoldStarts, failureHoldStarts } = useScenarioEngine(
     activeScenario,
     handleEngineEvent,
   );
@@ -273,6 +489,91 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   const scenarioProgressPct = useMemo(() => (
     calculateScenarioProgress(activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts).totalScore
   ), [activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts]);
+
+  const urgencyItems = useMemo(
+    () => computeUrgencyItems(activeScenario, failureHoldStarts, elapsedSec, activeInterventions),
+    [activeScenario, failureHoldStarts, elapsedSec, activeInterventions],
+  );
+
+  const vitalDecayRates = useMemo(
+    () => computeVitalDecayRates(activeScenario, activeInterventions),
+    [activeScenario, activeInterventions],
+  );
+
+  const timerPct = useMemo(() => {
+    const estimated = activeScenario?.meta?.estimatedDurationSec;
+    if (!estimated || estimated <= 0) return null;
+    return Math.min(elapsedSec / estimated, 1);
+  }, [activeScenario, elapsedSec]);
+
+  // Expired-action toast: fires only for cyclic interventions that need reapplication.
+  // Drugs and procedures are silent on expiry — the countdown pill disappearing is sufficient.
+  const prevInterventionsRef = useRef<ActiveIntervention[]>([]);
+  useEffect(() => {
+    const prev = prevInterventionsRef.current;
+    const prevTimed = prev.filter((iv) => iv.duration_sec !== undefined);
+    const currentIds = new Set(activeInterventions.map((iv) => iv.id));
+    for (const iv of prevTimed) {
+      if (!currentIds.has(iv.id) && CYCLIC_INTERVENTIONS.has(iv.id)) {
+        showToast(`${getInterventionShortLabel(iv.id)} — reapply now`, 'warning');
+      }
+    }
+    prevInterventionsRef.current = activeInterventions;
+  }, [activeInterventions, showToast]);
+
+  // Cheat mode key listener — 'c' toggles the overlay when scenario is active
+  useEffect(() => {
+    if (!cheatModeEnabled) return;
+    function handler(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      if (e.key === 'c' || e.key === 'C') {
+        if (activeScenario && !showSummary) {
+          setCheatVisible((v) => !v);
+        }
+      }
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [cheatModeEnabled, activeScenario, showSummary]);
+
+  // Cheat mode 3-finger downswipe — mobile trigger
+  const swipeTouchStartY = useRef<number | null>(null);
+  useEffect(() => {
+    if (!cheatModeEnabled) return;
+
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length >= 3) {
+        // Record average Y of all active touches
+        let sum = 0;
+        for (let i = 0; i < e.touches.length; i++) sum += e.touches[i].clientY;
+        swipeTouchStartY.current = sum / e.touches.length;
+      } else {
+        swipeTouchStartY.current = null;
+      }
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (swipeTouchStartY.current === null) return;
+      // changedTouches gives us the fingers that just lifted
+      let sum = 0;
+      for (let i = 0; i < e.changedTouches.length; i++) sum += e.changedTouches[i].clientY;
+      const endY = sum / e.changedTouches.length;
+      const deltaY = endY - swipeTouchStartY.current;
+      swipeTouchStartY.current = null;
+      // Downswipe threshold: 60px
+      if (deltaY > 60 && activeScenario && !showSummary) {
+        setCheatVisible((v) => !v);
+      }
+    }
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [cheatModeEnabled, activeScenario, showSummary]);
 
   const clinicalConclusion = useMemo(() => {
     const correctActions = evalActions.filter((action) => action.isCorrect).length;
@@ -349,7 +650,15 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
 
   return (
     <div id="app-shell" className={APP_SHELL_CLASS}>
-      <Header onHelpClick={handleHelpClick} monitorState={vitals} unlocked={unlocked} />
+      <Header
+        onHelpClick={handleHelpClick}
+        monitorState={vitals}
+        unlocked={unlocked}
+        urgencyItems={urgencyItems}
+        vitalDecayRates={vitalDecayRates}
+        timerPct={timerPct}
+        elapsedSec={elapsedSec}
+      />
       {vitals && <ContextualOverlay spo2={vitals.spo2} />}
       <IncorrectActionWidget message={incorrectActionMessage} onClose={() => setIncorrectActionMessage(null)} />
       {correctActionMessage && (
@@ -401,6 +710,13 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         rejectionCount={rejectionCount}
       />
       <OnboardingTour key={tourKey} activeTab={activeTab} setActiveTab={setActiveTab} scenarioActive={!!activeScenario} />
+      {cheatModeEnabled && cheatVisible && (
+        <CheatOverlay
+          scenario={activeScenario}
+          sequenceIndex={sequenceIndex}
+          onClose={() => setCheatVisible(false)}
+        />
+      )}
     </div>
   );
 }

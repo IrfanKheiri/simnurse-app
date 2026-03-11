@@ -1,68 +1,248 @@
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
-import type { PatientState } from '../types/scenario';
+import type { AdjustableVital, PatientState } from '../types/scenario';
+import type { UrgencyItem, UrgencyLevel } from '../App';
 
-interface HeaderProps {
-    onHelpClick: () => void;
-    monitorState?: PatientState | null;
-    unlocked?: Record<'hr' | 'spo2' | 'bp' | 'rr', boolean>;
+// ─── Vital urgency thresholds ──────────────────────────────────────────────────
+// Returns 'critical' | 'warning' | 'normal' for a given vital reading.
+
+function hrUrgency(hr: number): 'critical' | 'warning' | 'normal' {
+  if (hr < 40 || hr > 150) return 'critical';
+  if (hr < 50 || hr > 120) return 'warning';
+  return 'normal';
 }
 
+function spo2Urgency(spo2: number): 'critical' | 'warning' | 'normal' {
+  if (spo2 < 85) return 'critical';
+  if (spo2 < 92) return 'warning';
+  return 'normal';
+}
+
+function bpSysUrgency(bpStr: string): 'critical' | 'warning' | 'normal' {
+  const sys = parseInt(bpStr.split('/')[0] ?? '0', 10);
+  if (sys < 70 || sys > 180) return 'critical';
+  if (sys < 90 || sys > 160) return 'warning';
+  return 'normal';
+}
+
+function rrUrgency(rr: number): 'critical' | 'warning' | 'normal' {
+  if (rr < 6 || rr > 40) return 'critical';
+  if (rr < 10 || rr > 30) return 'warning';
+  return 'normal';
+}
+
+// ─── Decay arrow helper ──────────────────────────────────────────────────────
+// Returns arrow + colour class for a per-second rate.
+// Only shown when the rate magnitude is meaningful (≥ 0.01/s).
+
+function decayArrow(ratePerSec: number | undefined): { arrow: string; cls: string } | null {
+  if (ratePerSec === undefined || Math.abs(ratePerSec) < 0.01) return null;
+  if (ratePerSec < 0) return { arrow: '↓', cls: 'text-red-400' };
+  return { arrow: '↑', cls: 'text-green-400' };
+}
+
+// ─── Urgency strip pill colours ───────────────────────────────────────────────
+
+const URGENCY_PILL: Record<UrgencyLevel, string> = {
+  low: 'bg-slate-700 text-slate-200',
+  medium: 'bg-amber-600 text-white',
+  critical: 'bg-red-600 text-white animate-pulse',
+};
+
+// ─── Timer pill colour ───────────────────────────────────────────────────────
+
+function timerPillClass(pct: number): string {
+  if (pct >= 0.85) return 'bg-red-600 text-white';
+  if (pct >= 0.6) return 'bg-amber-500 text-white';
+  return 'bg-slate-700 text-slate-200';
+}
+
+function formatTimer(elapsedSec: number): string {
+  const m = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+  const s = (elapsedSec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+// ─── Vital value colour (Zone B) ────────────────────────────────────────────
+
+function vitalValueClass(tier: 'critical' | 'warning' | 'normal', unlockedColor: string): string {
+  if (tier === 'critical') return 'text-red-400 animate-pulse';
+  if (tier === 'warning') return 'text-amber-400';
+  return unlockedColor;
+}
+
+// ─── Props ───────────────────────────────────────────────────────────────────
+
+interface HeaderProps {
+  onHelpClick: () => void;
+  monitorState?: PatientState | null;
+  unlocked?: Record<'hr' | 'spo2' | 'bp' | 'rr', boolean>;
+  urgencyItems?: UrgencyItem[];
+  vitalDecayRates?: Partial<Record<AdjustableVital, number>>;
+  timerPct?: number | null;
+  elapsedSec?: number;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 // FIX (L23): Removed the non-functional notification bell button entirely.
-// It was a decorative element with a hardcoded red dot implying unread notifications
-// that did not exist, creating a false affordance. Re-add when notification data exists.
 // FIX (ISSUE-20): MiniMonitor merged as a second row inside this header to eliminate
-// the dual-sticky-header problem (~104px consumed before content). Combined header
-// stays sticky top-0 z-50; the monitor row no longer has its own sticky positioning.
-const Header: React.FC<HeaderProps> = ({ onHelpClick, monitorState = null, unlocked }) => {
-    return (
-        <header id="app-header" className="sticky top-0 z-50 flex flex-col border-b border-slate-100 bg-white">
-            <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-medical-500 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg shadow-medical-100">
-                        SN
-                    </div>
-                    <span className="text-sm font-black text-slate-800 tracking-tight uppercase">SimNurse</span>
-                </div>
+// the dual-sticky-header problem. Combined header stays sticky top-0 z-50.
+// REDESIGN: Three-zone MiniMonitor — timer pill + Zone B (vitals w/ urgency tiers
+// + decay arrows) + UrgencyStrip (failure proximity + intervention countdowns).
+const Header: React.FC<HeaderProps> = ({
+  onHelpClick,
+  monitorState = null,
+  unlocked,
+  urgencyItems = [],
+  vitalDecayRates = {},
+  timerPct = null,
+  elapsedSec = 0,
+}) => {
+  const hasMonitor = monitorState !== null && unlocked !== undefined;
+  const hasUrgency = urgencyItems.length > 0;
 
-                <div className="flex items-center gap-2">
-                    <button
-                        id="help-btn"
-                        onClick={onHelpClick}
-                        type="button"
-                        className="min-h-11 min-w-11 rounded-xl bg-slate-50 p-2.5 text-slate-500 transition-colors hover:bg-slate-100 active:scale-95"
-                        title="Restart onboarding tour"
-                        aria-label="Help — restart onboarding tour"
-                    >
-                        <HelpCircle size={20} />
-                    </button>
-                </div>
+  return (
+    <header id="app-header" className="sticky top-0 z-50 flex flex-col border-b border-slate-100 bg-white">
+      {/* ── Top row: logo + timer pill + help ─────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-medical-500 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg shadow-medical-100">
+            SN
+          </div>
+          <span className="text-sm font-black text-slate-800 tracking-tight uppercase">SimNurse</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Timer pill — only shown when a scenario is active */}
+          {hasMonitor && timerPct !== null && (
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-mono font-bold tabular-nums ${timerPillClass(timerPct)}`}
+              aria-label={`Scenario elapsed time ${formatTimer(elapsedSec)}`}
+            >
+              ⏱ {formatTimer(elapsedSec)}
+            </span>
+          )}
+
+          <button
+            id="help-btn"
+            onClick={onHelpClick}
+            type="button"
+            className="min-h-11 min-w-11 rounded-xl bg-slate-50 p-2.5 text-slate-500 transition-colors hover:bg-slate-100 active:scale-95"
+            title="Restart onboarding tour"
+            aria-label="Help — restart onboarding tour"
+          >
+            <HelpCircle size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Zone B: vital strip with urgency tiers + decay arrows ─────────── */}
+      {hasMonitor && (
+        <div id="mini-monitor" className="flex items-stretch bg-slate-900 text-white shadow-md">
+          {/* HR */}
+          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 text-[10px] font-semibold leading-none">HR</span>
+              {unlocked!.hr && (() => {
+                const d = decayArrow(vitalDecayRates.hr);
+                return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
+              })()}
             </div>
+            <span
+              className={`font-mono text-base leading-none ${
+                unlocked!.hr
+                  ? vitalValueClass(hrUrgency(monitorState!.hr), 'text-green-400')
+                  : 'text-slate-600'
+              }`}
+            >
+              {unlocked!.hr ? monitorState!.hr : '--'}
+            </span>
+          </div>
 
-            {monitorState && unlocked && (
-                <div id="mini-monitor" className="flex justify-around items-center bg-slate-900 text-white p-2 text-sm shadow-md">
-                    <div className="flex flex-col items-center flex-1">
-                        <span className="text-slate-400 text-xs font-semibold">HR</span>
-                        <span className={`font-mono text-lg ${unlocked.hr ? 'text-green-400' : 'text-slate-600'}`}>
-                            {unlocked.hr ? monitorState.hr : '--'}
-                        </span>
-                    </div>
-                    <div className="flex flex-col items-center flex-1 border-l border-slate-700">
-                        <span className="text-slate-400 text-xs font-semibold">BP</span>
-                        <span className={`font-mono text-lg ${unlocked.bp ? 'text-blue-400' : 'text-slate-600'}`}>
-                            {unlocked.bp ? monitorState.bp : '--/--'}
-                        </span>
-                    </div>
-                    <div className="flex flex-col items-center flex-1 border-l border-slate-700">
-                        <span className="text-slate-400 text-xs font-semibold">SpO2</span>
-                        <span className={`font-mono text-lg ${unlocked.spo2 ? 'text-cyan-400' : 'text-slate-600'}`}>
-                            {unlocked.spo2 ? `${monitorState.spo2}%` : '--'}
-                        </span>
-                    </div>
-                </div>
-            )}
-        </header>
-    );
+          {/* BP */}
+          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 text-[10px] font-semibold leading-none">BP</span>
+              {unlocked!.bp && (() => {
+                const d = decayArrow(vitalDecayRates.bp);
+                return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
+              })()}
+            </div>
+            <span
+              className={`font-mono text-base leading-none ${
+                unlocked!.bp
+                  ? vitalValueClass(bpSysUrgency(monitorState!.bp), 'text-blue-400')
+                  : 'text-slate-600'
+              }`}
+            >
+              {unlocked!.bp ? monitorState!.bp : '--/--'}
+            </span>
+          </div>
+
+          {/* SpO₂ */}
+          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 text-[10px] font-semibold leading-none">SpO₂</span>
+              {unlocked!.spo2 && (() => {
+                const d = decayArrow(vitalDecayRates.spo2);
+                return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
+              })()}
+            </div>
+            <span
+              className={`font-mono text-base leading-none ${
+                unlocked!.spo2
+                  ? vitalValueClass(spo2Urgency(monitorState!.spo2), 'text-cyan-400')
+                  : 'text-slate-600'
+              }`}
+            >
+              {unlocked!.spo2 ? `${monitorState!.spo2}%` : '--'}
+            </span>
+          </div>
+
+          {/* RR */}
+          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
+            <div className="flex items-center gap-1">
+              <span className="text-slate-400 text-[10px] font-semibold leading-none">RR</span>
+              {unlocked!.rr && (() => {
+                const d = decayArrow(vitalDecayRates.rr);
+                return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
+              })()}
+            </div>
+            <span
+              className={`font-mono text-base leading-none ${
+                unlocked!.rr
+                  ? vitalValueClass(rrUrgency(monitorState!.rr), 'text-violet-400')
+                  : 'text-slate-600'
+              }`}
+            >
+              {unlocked!.rr ? monitorState!.rr : '--'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── UrgencyStrip: merged failure proximity + intervention countdowns ── */}
+      {hasMonitor && hasUrgency && (
+        <div
+          id="urgency-strip"
+          className="flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 py-1.5 scrollbar-none"
+          aria-label="Timing alerts"
+        >
+          {urgencyItems.map((item) => (
+            <span
+              key={item.key}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
+              title={`${item.type === 'failure' ? 'Failure risk' : 'Intervention'}: ${item.label} — ${Math.ceil(item.remainingSec)}s remaining`}
+            >
+              {item.label}
+              <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </header>
+  );
 };
 
 export default Header;

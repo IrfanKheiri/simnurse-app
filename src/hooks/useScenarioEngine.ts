@@ -764,5 +764,6 @@ export function useScenarioEngine(scenario: Scenario | null, onEvent?: (event: E
     activeInterventions: state.activeInterventions,
     sequenceIndex: state.sequenceIndex,
     successHoldStarts: state.successHoldStarts,
+    failureHoldStarts: state.failureHoldStarts,
   };
 }
