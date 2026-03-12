@@ -50,6 +50,9 @@ export interface InterventionDefinition {
   requires_rhythm?: HeartRhythm[];
   success_chance?: number;
   success_state?: Partial<PatientState>;
+  /** Clinical justification for why this intervention is performed at this step.
+   *  1–2 sentences citing AHA guidelines. Shown in Post-Scenario Debrief. */
+  rationale?: string;
 }
 
 export interface ScheduledStateChange {
@@ -89,6 +92,8 @@ export interface Scenario {
   title: string;
   patient?: PatientDemographics;
   meta?: ScenarioMeta;
+  /** P3-A (ISSUE-08): Scenario-specific post-stabilization narrative shown in EvaluationSummary */
+  conclusion?: string;
   initial_state: PatientState;
   baseline_progressions: BaselineProgression[];
   scheduledStateChanges?: ScheduledStateChange[];

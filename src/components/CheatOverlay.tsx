@@ -116,7 +116,7 @@ export default function CheatOverlay({ scenario, sequenceIndex, onClose }: Cheat
       aria-label="Cheat mode — next action hint"
     >
       <div
-        className="relative mx-4 w-full max-w-sm rounded-2xl border border-yellow-400 bg-slate-900 p-5 shadow-2xl"
+        className="relative mx-4 w-full max-w-sm rounded-3xl border border-yellow-400 bg-slate-900 p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}

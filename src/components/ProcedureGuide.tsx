@@ -65,7 +65,7 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
             <div className="relative w-full sm:max-w-md mb-16">
                 <div
                     className={cn(
-                        "w-full bg-white rounded-t-[2.5rem] shadow-2xl transition-transform duration-300 ease-out border-t border-slate-100",
+                        "w-full bg-white rounded-t-3xl shadow-2xl transition-transform duration-300 ease-out border-t border-slate-100",
                         isOpen ? "translate-y-0" : "translate-y-full"
                     )}
                     style={{ maxHeight: '88vh', overflowY: 'auto' }}
@@ -102,7 +102,7 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
                         </div>
 
                         {/* Step-by-Step Protocol */}
-                        <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 mb-4">
+                        <div className="bg-slate-50/80 rounded-3xl p-4 border border-slate-100 mb-4">
                             <div className="flex items-center gap-2 mb-3">
                                 <div className="w-1.5 h-4 bg-medical-500 rounded-full" />
                                 <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Step-by-Step Protocol</h3>

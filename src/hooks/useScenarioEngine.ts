@@ -510,7 +510,8 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
     ];
 
     if (definition.success_chance !== undefined && definition.success_state) {
-      if (roll <= definition.success_chance) {
+      // ISSUE-23: short-circuit guaranteed success before invoking random roll comparison
+      if (definition.success_chance >= 1 || roll <= definition.success_chance) {
         const nextBaseState = clampState({ ...state.baseState, ...definition.success_state });
         return {
           ...state,
@@ -564,6 +565,9 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
     };
   }
 
+  // ISSUE-21: The setInterval callback does not close over `state`, so the
+  // status guard below is the authoritative early-exit for any stale ticks
+  // that fire after a status transition but before React cleans up the interval.
   if (!state.baseState || !state.displayState || state.status !== 'running') {
     return state;
   }
@@ -628,10 +632,12 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
   nextBaseState = clampState(nextBaseState);
   const nextDisplayState = buildDisplayState(nextBaseState, action.scenario, nextActiveInterventions);
 
+  // ISSUE-22: evaluate win/loss against baseState, not displayState, so that
+  // state_overrides from active interventions cannot prematurely satisfy conditions.
   const failureResult = updateFailureHolds(
     state.failureHoldStarts,
     action.scenario.failure_conditions,
-    nextDisplayState,
+    nextBaseState,
     nextElapsedSec,
   );
 
@@ -660,7 +666,7 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
   const successResult = updateSuccessHolds(
     state.successHoldStarts,
     action.scenario.success_conditions,
-    nextDisplayState,
+    nextBaseState,
     nextElapsedSec,
   );
 

@@ -81,9 +81,9 @@ const ScenarioPreviewModal: React.FC<ScenarioPreviewModalProps> = ({ scenario, o
             <div className="flex items-center gap-2 text-sm text-white">
               <User size={14} className="shrink-0" />
               <span className="font-medium">{patient.name}</span>
-              <span className="text-white/70">·</span>
+              <span className="text-white/95">·</span>
               <span>{patient.age}</span>
-              <span className="text-white/70">·</span>
+              <span className="text-white/95">·</span>
               <span>{patient.gender === 'M' ? 'Male' : patient.gender === 'F' ? 'Female' : patient.gender}</span>
             </div>
           )}
@@ -283,6 +283,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
       </header>
 
       <section id="scenarios-list-container" className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
+        {/* TODO: add medical-N token for gradient end-stop — indigo-600 kept as decorative gradient accent (no equivalent medical-* shade at this depth) */}
         {showWelcome && (
           <div
             id="welcome-banner"
@@ -397,40 +398,6 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
                       <h3 className="text-base font-bold text-slate-800 leading-tight mb-1">
                           {scenario.title}
                       </h3>
-                      {/* P3-G: Recent session outcomes */}
-                      {(() => {
-                        const outcomes = scenarioHistory.get(scenario.scenario_id);
-                        if (!outcomes || outcomes.length === 0) return null;
-                        return (
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <span className="text-xs text-slate-400">Recent:</span>
-                            {outcomes.map((outcome, i) => (
-                              <span
-                                key={i}
-                                className={`text-xs rounded-full px-2 py-0.5 font-bold ${
-                                  outcome === 'success'
-                                    ? 'bg-medical-50 text-medical-700'
-                                    : 'bg-red-50 text-red-600'
-                                }`}
-                              >
-                                {outcome === 'success' ? '✓ Pass' : '✗ Fail'}
-                              </span>
-                            ))}
-                            {/* span used intentionally: nested <button> inside card <button> is invalid HTML */}
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => void clearScenarioHistory(scenario.scenario_id, e)}
-                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') void clearScenarioHistory(scenario.scenario_id, e); }}
-                              className="ml-0.5 cursor-pointer text-slate-300 hover:text-red-400 transition-colors"
-                              title="Clear history for this scenario"
-                              aria-label={`Clear history for ${scenario.title}`}
-                            >
-                              <X size={11} />
-                            </span>
-                          </div>
-                        );
-                      })()}
                       <div className="flex flex-wrap items-center gap-2">
                           {scenario.meta ? (
                             <>
@@ -458,6 +425,37 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
                             </div>
                           )}
                       </div>
+                      {/* ISSUE-27: Per-scenario session history dots — below metadata badges */}
+                      {(() => {
+                        const outcomes = scenarioHistory.get(scenario.scenario_id);
+                        if (!outcomes || outcomes.length === 0) return null;
+                        return (
+                          <div className="flex items-center gap-1 mt-2">
+                            <span className="text-[10px] text-slate-400 mr-0.5">Last runs:</span>
+                            {outcomes.map((outcome, i) => (
+                              <span
+                                key={i}
+                                title={`Run ${i + 1}: ${outcome}`}
+                                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                  outcome === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+                                }`}
+                              />
+                            ))}
+                            {/* span used intentionally: nested <button> inside card <button> is invalid HTML */}
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => void clearScenarioHistory(scenario.scenario_id, e)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') void clearScenarioHistory(scenario.scenario_id, e); }}
+                              className="ml-1 cursor-pointer text-slate-300 hover:text-red-400 transition-colors"
+                              title="Clear history for this scenario"
+                              aria-label={`Clear history for ${scenario.title}`}
+                            >
+                              <X size={10} />
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="shrink-0 p-2 text-slate-300 group-hover:text-medical-500 transition-colors">

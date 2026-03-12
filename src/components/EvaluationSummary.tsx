@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen } from 'lucide-react';
+import { CheckCircle2, AlertCircle, AlertTriangle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen, Lightbulb } from 'lucide-react';
 import ProcedureGuide from './ProcedureGuide';
 import { ACTIONS } from './ActionsScreen';
 import type { Action } from './ActionsScreen';
@@ -11,6 +11,11 @@ export interface ActionFeedback {
     comment: string;
     timestamp: string;
     reviewId?: string;
+    isDuplicate?: boolean;
+    /** Human-readable label of the intervention expected at this sequence position. */
+    expectedActionLabel?: string;
+    /** Clinical rationale from InterventionDefinition.rationale for the expected action. */
+    expectedActionRationale?: string;
 }
 
 interface EvaluationSummaryProps {
@@ -19,6 +24,8 @@ interface EvaluationSummaryProps {
     clinicalConclusion: string;
     /** FIX (C2, H8): Outcome determines header colour & narrative framing */
     outcome: 'success' | 'failed' | 'manual';
+    /** P3-A (ISSUE-08): Scenario-specific post-stabilization narrative */
+    conclusion?: string;
     onRestart: () => void;
     /** FIX (H9): Now receives an onReturnToLibrary callback */
     onReturnToLibrary: () => void;
@@ -26,7 +33,7 @@ interface EvaluationSummaryProps {
 }
 
 const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
-    const radius = 60;
+    const radius = 50;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (score / 100) * circumference;
 
@@ -42,16 +49,21 @@ const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
 
     return (
         <div className="relative flex flex-col items-center justify-center py-4 text-center">
-            <div className="relative w-40 h-40">
-                <svg className="w-full h-full transform -rotate-90">
-                    <circle cx="80" cy="80" r={radius} stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
-                    <circle
-                        cx="80" cy="80" r={radius}
-                        stroke={tier.color} strokeWidth="12" fill="transparent"
-                        strokeDasharray={circumference} strokeDashoffset={offset}
-                        strokeLinecap="round"
-                        className="transition-all duration-1000 ease-out"
-                    />
+            {/* overflow-hidden prevents the stroke from bleeding outside the bounds */}
+            <div className="relative w-40 h-40 overflow-hidden">
+                {/* viewBox centres the coordinate space; rotate(-90) on <g> keeps the SVG
+                    layout box untouched so the absolute text overlay stacks correctly */}
+                <svg className="w-full h-full" viewBox="0 0 120 120">
+                    <g transform="rotate(-90 60 60)">
+                        <circle cx="60" cy="60" r={radius} stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
+                        <circle
+                            cx="60" cy="60" r={radius}
+                            stroke={tier.color} strokeWidth="12" fill="transparent"
+                            strokeDasharray={circumference} strokeDashoffset={offset}
+                            strokeLinecap="round"
+                            className="transition-all duration-1000 ease-out"
+                        />
+                    </g>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-4xl font-black text-slate-800 tracking-tighter">{score}%</span>
@@ -102,26 +114,52 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                             <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-lg mb-2">
                                 {action.timestamp}
                             </span>
-                            <div className={`w-3 h-3 rounded-full border-2 bg-white relative z-10 ${action.isCorrect ? 'border-emerald-500' : 'border-red-500'}`}>
-                                <div className={`absolute inset-1 rounded-full ${action.isCorrect ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                            <div className={`w-3 h-3 rounded-full border-2 bg-white relative z-10 ${
+                                action.isCorrect
+                                    ? 'border-emerald-500'
+                                    : action.isDuplicate
+                                    ? 'border-amber-400'
+                                    : 'border-red-500'
+                            }`}>
+                                <div className={`absolute inset-1 rounded-full ${
+                                    action.isCorrect
+                                        ? 'bg-emerald-500 animate-pulse'
+                                        : action.isDuplicate
+                                        ? 'bg-amber-400'
+                                        : 'bg-red-500'
+                                }`} />
                             </div>
                         </div>
 
                         {/* Event Content */}
-                        <div className={`flex-1 p-5 rounded-[2rem] border transition-all ${action.isCorrect ? 'bg-white border-slate-200' : 'bg-red-50/50 border-red-100'}`}>
+                        <div className={`flex-1 p-5 rounded-[2rem] border transition-all ${
+                            action.isCorrect
+                                ? 'bg-white border-slate-200'
+                                : action.isDuplicate
+                                ? 'bg-amber-50/50 border-amber-100'
+                                : 'bg-red-50/50 border-red-100'
+                        }`}>
                             <div className="flex justify-between items-start mb-2">
                                 <h4 className="text-sm font-black text-slate-800 tracking-tight leading-tight">{action.name}</h4>
                                 {action.isCorrect ? (
                                     <div className="p-1 text-emerald-600"><CheckCircle2 size={16} /></div>
+                                ) : action.isDuplicate ? (
+                                    <div className="p-1 text-amber-500"><AlertTriangle size={16} /></div>
                                 ) : (
                                     <div className="p-1 text-red-600"><AlertCircle size={16} /></div>
                                 )}
                             </div>
-                            <p className={`text-xs ${action.isCorrect ? 'text-slate-500' : 'text-red-700 font-medium'} leading-relaxed mb-3`}>
+                            <p className={`text-xs leading-relaxed mb-3 ${
+                                action.isCorrect
+                                    ? 'text-slate-500'
+                                    : action.isDuplicate
+                                    ? 'text-amber-700 font-medium'
+                                    : 'text-red-700 font-medium'
+                            }`}>
                                 {action.comment}
                             </p>
 
-                            {!action.isCorrect && action.reviewId && (
+                            {!action.isCorrect && !action.isDuplicate && action.reviewId && (
                                 <button
                                     type="button"
                                     onClick={() => onReviewProcedure(action.reviewId!)}
@@ -130,6 +168,30 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                                     <ExternalLink size={12} />
                                     Review Protocol
                                 </button>
+                            )}
+
+                            {/* Correct-step guidance — only for sequence errors with known expected action */}
+                            {!action.isCorrect && !action.isDuplicate && action.expectedActionLabel && (
+                                <div className="mt-3 pt-3 border-t border-red-100">
+                                    <div className="flex items-start gap-2">
+                                        <div className="shrink-0 mt-0.5 text-amber-500">
+                                            <Lightbulb size={14} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-0.5">
+                                                Correct step:
+                                            </p>
+                                            <p className="text-xs font-bold text-slate-800 leading-snug mb-1">
+                                                {action.expectedActionLabel}
+                                            </p>
+                                            {action.expectedActionRationale && (
+                                                <p className="text-xs text-slate-500 leading-relaxed">
+                                                    {action.expectedActionRationale}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -144,6 +206,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
     actions,
     clinicalConclusion,
     outcome,
+    conclusion,
     onRestart,
     onReturnToLibrary,
     onReviewProcedure: _onReviewProcedure
@@ -157,6 +220,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
         };
     }, []);
     /** FIX (H8): Outcome-dependent header colour */
+    // TODO: add medical-N token for 'manual' outcome accent if indigo-600 is replaced
     const outcomeColor =
         outcome === 'success' ? 'text-emerald-600' :
         outcome === 'failed'  ? 'text-red-600' :
@@ -180,22 +244,33 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
 
             <article className="p-6">
                 {/* Score Card */}
-                <section id="score-card-container" className="bg-white rounded-[2.5rem] p-4 shadow-premium border border-slate-100 mb-8 overflow-hidden relative">
+                <section id="score-card-container" className="bg-white rounded-3xl p-4 shadow-premium border border-slate-100 mb-8 overflow-hidden relative">
                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-slate-900 pointer-events-none">
                         <Trophy size={160} strokeWidth={1} />
                     </div>
                     <ScoreGauge score={score} />
                 </section>
 
+                {/* P3-A (ISSUE-08): Scenario-specific outcome narrative */}
+                {outcome === 'success' && (
+                    <section className="mb-6">
+                        <p className="bg-emerald-50 border border-emerald-100 text-emerald-800 text-sm font-medium leading-relaxed italic p-5 rounded-[2rem]">
+                            "{conclusion ?? 'Patient stabilized.'}"
+                        </p>
+                    </section>
+                )}
+
                 {/* FIX (H8): Clinical Conclusion — now outcome-specific */}
                 <section className="mb-10 group">
                     <header className="flex items-center gap-3 mb-4">
+                        {/* TODO: add medical-N token for success/manual accent — indigo-500 kept as decorative gradient fallback */}
                         <div className={`p-2 rounded-xl text-white shadow-lg ${outcome === 'failed' ? 'bg-red-500 shadow-red-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
                             <Info size={18} />
                         </div>
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Clinical Conclusion</h3>
                     </header>
-                    <div className={`rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden ${outcome === 'failed' ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-100' : 'bg-gradient-to-br from-indigo-600 to-indigo-800 shadow-indigo-100'}`}>
+                    {/* TODO: add medical-N token for success/manual gradient — indigo-600/800 kept as decorative gradient (no equivalent medical-* shade for gradient stop) */}
+                    <div className={`rounded-3xl p-8 text-white shadow-xl relative overflow-hidden ${outcome === 'failed' ? 'bg-gradient-to-br from-red-600 to-red-800 shadow-red-100' : 'bg-gradient-to-br from-indigo-600 to-indigo-800 shadow-indigo-100'}`}>
                         <div className="absolute -bottom-8 -right-8 opacity-10 pointer-events-none">
                             <Activity size={120} strokeWidth={1} />
                         </div>

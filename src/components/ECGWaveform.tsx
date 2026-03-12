@@ -221,7 +221,7 @@ const ECGWaveform: React.FC<ECGWaveformProps> = ({ rhythm, pulsePresent }) => {
 
   return (
     <div className="w-full bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-lg mb-6">
-      <canvas ref={canvasRef} className="w-full h-[120px]" role="img" aria-label={label} />
+      <canvas ref={canvasRef} className="w-full h-[120px]" role="img" aria-label={`ECG waveform: ${label}${!pulsePresent ? ' — pulseless' : ''}`} />
       <div className="px-3 py-1.5 bg-slate-800/50 flex justify-between items-center">
         {/* Rhythm name with live colour indicator */}
         <div className="flex items-center gap-2">

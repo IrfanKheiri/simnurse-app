@@ -680,6 +680,8 @@ interface ActionsScreenProps {
     onReviewActionHandled?: () => void;
     activeInterventions: { id: string; start_time: number; duration_sec?: number }[];
     elapsedSec: number;
+    /** P3-B (ISSUE-15): When true, all actions are disabled and a completion banner is shown */
+    disabled?: boolean;
 }
 
 function getCooldownRemaining(
@@ -699,6 +701,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
     onReviewActionHandled,
     activeInterventions,
     elapsedSec,
+    disabled = false,
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -845,7 +848,14 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                 </div>
             </header>
 
-            <article id="actions-list-container" className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
+            {/* P3-B (ISSUE-15): Completion banner — shown when scenario is no longer running */}
+            {disabled && (
+                <div className="bg-slate-100 text-slate-500 text-sm p-3 rounded-lg mb-4 mx-6 mt-4">
+                    Scenario complete — no further actions available.
+                </div>
+            )}
+
+            <article id="actions-list-container" className={`flex-1 overflow-y-auto px-6 pt-6 pb-4${disabled ? ' pointer-events-none opacity-50' : ''}`}>
                 {CATEGORIES.map(category => {
                     const catActions = filteredActions.filter((a: Action) => a.categoryId === category.id);
                     if (catActions.length === 0) return null;

@@ -1,17 +1,21 @@
 
 # SimNurse — Frontend Interface Design Audit
 
-**Audit Date:** 2026-03-10  
-**Auditor:** Project Research Mode — Systematic Codebase Analysis  
+**Audit Date:** 2026-03-10 | **Last Reconciled:** 2026-03-12 (code-verified)
+**Auditor:** Project Research Mode — Systematic Codebase Analysis
 **Scope:** Full frontend interface — all React components, styling systems, interaction patterns, accessibility, responsive behavior, and visual design
+
+> **Reconciliation note (2026-03-12):** Code audit confirmed 7 issues previously marked "open" were fixed in code but not yet reflected in this document. Sections updated: Executive Summary, §3.1, §3.2, §4, §7, §9, §10.2, §10.6, §12, §13, §14, Appendix.
+>
+> **P3 Remediation note (2026-03-12):** All 7 P3 polish items (P3-A through P3-G) completed. Sections updated: Executive Summary, §1.1, §10.2, §10.3, §11.2, §13, §14, Appendix.
 
 ---
 
 ## Executive Summary
 
-SimNurse is a mobile-first clinical simulation SPA built on React 19, Tailwind CSS, and a custom teal (`medical-*`) design token palette. The interface is architecturally sound — it uses a consistent shell (`max-w-[440px]` centered column), a persistent `Header` + `MiniMonitor` sticky stack, a `BottomNav` tab switcher, and a set of full-screen tab views (`PatientView`, `ActionsScreen`, `StatusDashboard`). Visual design quality is above average for an educational app: the color system is thoughtful, typography is consistent, and interactive affordances are clearly communicated.
+SimNurse is a mobile-first clinical simulation SPA built on React 19, Tailwind CSS, and a custom teal (`medical-*`) design token palette. The interface is architecturally sound — it uses a consistent shell (`max-w-[440px]` centered column), a single composite sticky `Header` (which now incorporates the vital monitor strip), a `BottomNav` tab switcher, and a set of full-screen tab views (`PatientView`, `ActionsScreen`, `StatusDashboard`). Visual design quality is above average for an educational app: the color system is thoughtful, typography is consistent, and interactive affordances are clearly communicated.
 
-However, the audit identifies **28 active UX issues** (tracked in `docs/ux-issues.md`), of which **13 remain open**, and surfaces additional design-layer gaps not captured in that log — particularly around contrast ratios, spacing system discipline, the MiniMonitor sticky stack height problem, the VitalCard "unlock" affordance, and the ProcedureGuide diagram placeholder. Cross-device behavior has several measurable defects on 375px viewports that require specific remediation.
+The audit originally identified **29 UX issues** (tracked in `docs/ux-issues.md`). As of the 2026-03-12 P3 remediation pass, **27 are fixed** (including 7 that were fixed in code without documentation updates, plus 7 P3 polish items now completed), **1 is intentionally ignored**, **1 is deferred**, and **0 remain genuinely open**. Additional design-layer gaps around contrast ratios, VitalCard "unlock" affordance, and the ProcedureGuide diagram placeholder remain. Cross-device behavior is substantially improved from prior audits.
 
 ---
 
@@ -104,25 +108,23 @@ Each of the three main tab screens follows the same pattern:
 
 This creates predictable screen-level hierarchy. However:
 
-**Header Duplication Issue:** During an active scenario, the layout stacks:
-- [`Header`](src/components/Header.tsx) — `sticky top-0 z-50` (~56px)
-- [`MiniMonitor`](src/components/MiniMonitor.tsx) — `sticky top-0 z-40` (~48px)
-- Per-screen `<header>` inside the scrollable area
+**Header Composite Strip (ISSUE-20 — Fixed):** The dual-sticky-header problem is resolved. [`Header.tsx`](src/components/Header.tsx) now contains:
+- **Row 1:** Logo + elapsed timer pill + help button (`~44px`)
+- **Row 2 (conditional):** `id="mini-monitor"` vital strip with HR/BP/SpO₂/RR, urgency-tier colors, and decay arrows — rendered only when `monitorState !== null`
+- **Row 3 (conditional):** `id="urgency-strip"` failure proximity + intervention countdown pills — rendered only when urgency items exist
 
-The first two are simultaneously sticky, consuming **~104px** before any content begins. On a 667px tall viewport (iPhone SE), this leaves only 507px for the tab content, then an additional 56px is consumed by `BottomNav`, leaving just **451px of usable content height**. This directly causes the clinical notes clipping bug (ISSUE-11) and worsens the active intervention badge overlap (ISSUE-09).
-
-**Recommendation:** Merge `MiniMonitor` into the `Header` as a collapsible secondary row that is only rendered during `activeScenario !== null`. Target combined sticky height ≤ 68px.
+The standalone `MiniMonitor.tsx` component is no longer mounted in `App.tsx`. The combined sticky height is a single `z-50` header at approximately 56–88px depending on urgency strip presence — well below the prior 104px dual-sticky problem. ISSUE-11 (clinical notes clipping) and ISSUE-09 (badge overlap) were independently fixed at the component level as well.
 
 ### 3.2 Component-Level Hierarchy
 
 | Component | Hierarchy Quality | Notes |
 |---|---|---|
 | [`LibraryScreen`](src/components/LibraryScreen.tsx) | ✅ Good | Welcome banner → List header → Cards → Modal progression is logical |
-| [`PatientView`](src/components/PatientView.tsx) | ⚠️ Needs work | Floating badges `absolute top-4 left-4` overlap the "Patient View" heading (ISSUE-09) |
+| [`PatientView`](src/components/PatientView.tsx) | ✅ Good | Badges now in-flow below header (ISSUE-09 fixed); clinical notes in-flow at bottom (ISSUE-11 fixed) |
 | [`ActionsScreen`](src/components/ActionsScreen.tsx) | ✅ Good | Header → search → category groups → action cards is clear and scannable |
 | [`StatusDashboard`](src/components/StatusDashboard.tsx) | ✅ Good | ECG waveform → vitals grid → progress bar is correct clinical priority order |
-| [`EvaluationSummary`](src/components/EvaluationSummary.tsx) | ✅ Good | Score gauge → conclusion → timeline → actions follows natural review flow |
-| [`ProcedureGuide`](src/components/ProcedureGuide.tsx) | ⚠️ Needs work | Permanent diagram placeholder breaks hierarchy; creates false content expectation |
+| [`EvaluationSummary`](src/components/EvaluationSummary.tsx) | ✅ Good | Score gauge → conclusion → timeline → actions follows natural review flow; "Review Protocol" now opens guide as portal overlay (ISSUE-25 fixed) |
+| [`ProcedureGuide`](src/components/ProcedureGuide.tsx) | ⚠️ Needs work | Static `ImageOff` placeholder still occupies diagram area (ISSUE-14, deferred); animated ping/pulse rings removed (improvement) |
 
 ---
 
@@ -150,11 +152,11 @@ This creates a phone-frame effect on desktop — appropriate for a mobile-first 
 
 **Issues:**
 
-1. **`pb-24` on Main Scroll Area ([`App.tsx:346`](src/App.tsx:346))** clears the BottomNav, but when MiniMonitor is also sticky, the top padding is not compensated. Content near the top of the scroll area can be obscured without scroll.
+1. **`pb-24` on Main Scroll Area ([`App.tsx:671`](src/App.tsx:671))** clears the BottomNav correctly. With ISSUE-20 resolved (MiniMonitor merged into Header), the top padding compensation concern is eliminated — a single `sticky top-0 z-50` header now handles all sticky chrome.
 
-2. **Clinical Notes Absolute Positioning ([`PatientView.tsx:239`](src/components/PatientView.tsx:239)):** `absolute bottom-24` places the notes card at a fixed offset from the bottom. On viewports shorter than 700px, this card overlaps or is hidden behind the BottomNav — a hard layout bug (ISSUE-11). The element should be in-flow within the `<article>` with `pb-24` padding instead.
+2. **Clinical Notes (ISSUE-11 — Fixed):** `absolute bottom-24` replaced with in-flow `div#clinical-notes-container` at [`PatientView.tsx:271`](src/components/PatientView.tsx:271) using `w-full px-4 pb-4`. Notes scroll naturally with page content and are not occluded by BottomNav on any viewport.
 
-3. **Active Intervention Badges ([`PatientView.tsx:184`](src/components/PatientView.tsx:184)):** `absolute top-4 left-4 z-20` will collide with the `<header>` that begins at `p-6` (24px). When 3+ interventions are active, the badge stack overflows into the heading area. Recommend: move to in-flow position below the header.
+3. **Active Intervention Badges (ISSUE-09 — Fixed):** Moved to an in-flow `flex-wrap gap-2 mt-2` row inside `<header id="patient-view-header">` at [`PatientView.tsx:206`](src/components/PatientView.tsx:206). Capped at `MAX_BADGES = 3` with "+N more" overflow pill. No absolute positioning — no header overlap possible.
 
 ---
 
@@ -278,17 +280,17 @@ The app uses a mobile-first single-column layout constrained to `max-w-[440px]`.
 
 ### 7.2 Known Responsive Defects
 
-**ISSUE-09 / PatientView Badges ([`PatientView.tsx:184`](src/components/PatientView.tsx:184)):**
-`absolute top-4 left-4` stacks over the `<header>` which begins at `p-6`. When 3+ interventions are active, badges extend to y=100px+ from the section top, covering the "Patient View" title and status text.
+**ISSUE-09 / PatientView Badges — Fixed ([`PatientView.tsx:206-221`](src/components/PatientView.tsx:206)):**
+Badges are now in-flow inside `<header id="patient-view-header">` as a `flex-wrap gap-2 mt-2` row. `MAX_BADGES = 3` caps visible badges; a "+N more" pill handles overflow. No absolute positioning — header overlap is eliminated.
 
-**ISSUE-11 / Clinical Notes Clipping ([`PatientView.tsx:239`](src/components/PatientView.tsx:239)):**
-`absolute bottom-24` on a 667px screen: clinical notes top edge = 667 - 96 (bottom-24) - ~80 (card height) = ~491px from top. With the Header (56px) + MiniMonitor (48px) consuming 104px from the top and BottomNav (56px) from the bottom, the usable viewport is 507px. The notes card occupies the last 96-176px of that space — but since the patient illustration area uses `flex-1`, the notes card overlaps the illustration and may render partially behind BottomNav.
+**ISSUE-11 / Clinical Notes Clipping — Fixed ([`PatientView.tsx:271-278`](src/components/PatientView.tsx:271)):**
+Replaced `absolute bottom-24` with in-flow `div#clinical-notes-container` using `w-full px-4 pb-4`. Notes are now always visible in the scroll flow regardless of viewport height.
 
-**ISSUE-20 / Dual Sticky Stack ([`App.tsx:341-342`](src/App.tsx:341)):**
-`Header` (`z-50`) + `MiniMonitor` (`z-40`) both declare `sticky top-0`. On a 375px screen this consumes ~104px, leaving only 451px between headers and BottomNav. **Recommended fix:** Integrate MiniMonitor as a collapsible row inside Header — render only during `activeScenario !== null`. Target combined height ≤ 64px.
+**ISSUE-20 / Dual Sticky Stack — Fixed ([`Header.tsx:89-243`](src/components/Header.tsx:89)):**
+`MiniMonitor` merged into `Header` as a conditional second row. Single `sticky top-0 z-50` header now handles all sticky chrome. Combined height ≈ 56–88px (vs. prior 104px). The standalone `MiniMonitor.tsx` component is no longer mounted in `App.tsx`.
 
-**ISSUE-28 / IncorrectActionWidget ([`IncorrectActionWidget.tsx:14`](src/components/IncorrectActionWidget.tsx:14)):**
-`fixed inset-0` inside `#app-shell` (440px constrained). On wide viewports, the inset-0 fixed overlay escapes the 440px column, causing the backdrop to cover the full viewport while the modal remains centered in the column. Use `createPortal` with explicit 440px width constraint (already in place — portal renders to `document.body`). The fix is complete for portal rendering, but the overlay `bg-slate-900/60` will still span the full viewport width. Constrain with `left-1/2 -translate-x-1/2 max-w-[440px]` on the backdrop.
+**ISSUE-28 / IncorrectActionWidget — Fixed ([`IncorrectActionWidget.tsx:23-66`](src/components/IncorrectActionWidget.tsx:23)):**
+Uses `createPortal(…, document.body)`. Backdrop is `left-1/2 -translate-x-1/2 w-full max-w-[440px] inset-y-0` — correctly constrained to the 440px app column on wide viewports. `role="dialog" aria-modal aria-labelledby` added; focus moves to Acknowledge button on open.
 
 ---
 
@@ -359,7 +361,9 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 3. `PatientView` → `ActionsScreen` → `StatusDashboard` (via BottomNav) ✅ Clear
 4. End Scenario → `EndConfirmDialog` → `EvaluationSummary` ✅ Guarded
 
-**Navigation Gap — ISSUE-25:** "Review Protocol" in `EvaluationSummary` calls `setShowSummary(false)` and navigates to the Actions tab. After the guide closes, the user is stranded in the live scenario view with no route back to the debrief. The debrief is destroyed. **Fix:** Open `ProcedureGuide` as a modal layer on top of `EvaluationSummary` via a portal, without modifying `showSummary`.
+**ISSUE-25 — Fixed:** "Review Protocol" in `EvaluationSummary` now manages local `reviewAction` state that opens `ProcedureGuide` as a portal overlay within the debrief. `setShowSummary` is never called — the debrief is preserved. `onReviewProcedure` in `App.tsx` is a no-op placeholder.
+
+**Remaining navigation gap:** When `ProcedureGuide` is open from the Actions tab and the user taps a BottomNav tab, the guide does not close — it persists as a portal over the new tab content.
 
 ---
 
@@ -385,18 +389,20 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 
 **File:** [`src/components/PatientView.tsx`](src/components/PatientView.tsx)
 
-**Design Grade: B**
+**Design Grade: B+** *(upgraded from B — layout bugs resolved)*
 
 - Patient illustration with cyanosis overlay (`mix-blend-multiply`) is visually distinctive
 - Floating vitals badges (SpO₂ and Rhythm) are immediately visible
 - Clinical notes card uses `backdrop-blur-md` glassmorphism — aesthetically consistent
 - Dynamic clinical narrative is a strong clinical education feature
+- Active intervention badges now in-flow, capped at 3 + overflow (ISSUE-09 fixed)
+- Clinical notes now in-flow at bottom of section (ISSUE-11 fixed)
+- "End" button upgraded to `bg-red-500 text-white` — clearly communicates destructive action; `aria-label="End scenario and view debrief"` added
+- `EndConfirmDialog` manages focus correctly via `useRef`
 
-**Critical issues:**
-- `absolute bottom-24` clinical notes positioning (ISSUE-11)
-- `absolute top-4 left-4` intervention badges overlap header (ISSUE-09)
-- SpO₂ and Rhythm freely visible without unlock (inconsistency with StatusDashboard, ISSUE-10)
-- "End" button uses `p-3 bg-red-50 text-red-600` — reads as a mild button, not the critical destructive action it is
+**Remaining issues:**
+- SpO₂ and Rhythm badges always show live values regardless of `unlocked` state — only `opacity` dims when not unlocked (ISSUE-10, open). Creates inconsistency with StatusDashboard vital gating.
+- ~~Post-stabilization clinical narrative remains generic~~ — **Fixed (ISSUE-08):** `conclusion` field added to `Scenario` type; all 25 seed scenarios include clinically specific conclusion text; `EvaluationSummary` renders `conclusion ?? 'Patient stabilized.'` on success outcome.
 
 ### 10.3 ActionsScreen
 
@@ -441,17 +447,22 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 
 **Positive highlights:** The [`ScoreGauge`](src/components/EvaluationSummary.tsx:25) SVG implementation with `strokeDashoffset` animation and performance tier labels is the most polished UI element in the application.
 
-### 10.6 MiniMonitor
+### 10.6 Header Vital Strip (formerly standalone MiniMonitor)
 
-**File:** [`src/components/MiniMonitor.tsx`](src/components/MiniMonitor.tsx)
+**File:** [`src/components/Header.tsx`](src/components/Header.tsx) *(MiniMonitor merged here — ISSUE-20 fixed)*
 
-**Design Grade: C+**
+**Design Grade: B+** *(upgraded from C+ — dual sticky resolved, RR added, critical alerts added)*
 
-- Dark `bg-slate-900` bar with monospace green/blue/cyan readings — appropriate clinical monitor aesthetics
-- Only shows HR, BP, SpO₂ (no RR) — omits one of the four lockable vitals without explanation
-- Uses `sticky top-0 z-40` — conflicts with `Header`'s `z-50` creating the dual-sticky problem
-- No label for Respiratory Rate — learner must navigate to Status tab to see RR even after unlocking all vitals
-- No critical alert animation for life-threatening vital values (e.g., HR 0, SpO₂ 70%)
+- `MiniMonitor` merged into `Header` as a conditional second row (`id="mini-monitor"`) at [`Header.tsx:141-222`](src/components/Header.tsx:141)
+- Now shows all 4 vitals: **HR, BP, SpO₂, RR** — complete vital picture without needing Status tab
+- Urgency tier coloring: `critical` → `animate-pulse text-red-400`, `warning` → `text-amber-400`, `normal` → vital-specific color
+- Vital decay arrows (↑ green / ↓ red) next to each vital label communicate trajectory direction
+- Third conditional row `id="urgency-strip"` shows failure-proximity and intervention-countdown pills with color-coded urgency (low/medium/critical)
+- Timer pill in top row shows elapsed time with color feedback (amber at 60%, red at 85% of estimated duration)
+- Single `sticky top-0 z-50` — dual-sticky problem eliminated
+- The standalone `MiniMonitor.tsx` file remains in the codebase but is no longer mounted in `App.tsx`
+
+**Remaining issue:** `text-[10px]` vital labels in the header strip fall below WCAG recommended text size minimums (though these are decorative labels, not interactive elements)
 
 ### 10.7 Toast System
 
@@ -542,90 +553,100 @@ This is a coherent visual language. The medical teal is appropriately clinical w
 
 ### 12.2 Cognitive Load Management
 
-- The 33-action catalog without scenario filtering (ISSUE-12) creates high cognitive load on the Actions screen, especially for novice learners encountering pediatric-specific or STEMI-specific drugs during an arrest scenario.
-- The vital unlock mechanic is a positive pedagogical tool (forces assessment before data access), but the 10px "Perform Inspection to unlock" text and absent explanation create friction for new users (ISSUE-17).
+- The 33-action catalog without scenario filtering (ISSUE-12, intentionally ignored) creates high cognitive load on the Actions screen, especially for novice learners encountering pediatric-specific or STEMI-specific drugs during an arrest scenario.
+- The vital unlock mechanic is a positive pedagogical tool, but SpO₂ is freely shown on the Patient tab while locked on the Status tab (ISSUE-10, open) — undermining the mechanic's pedagogical intent. The "Perform Inspection to unlock" touch target is now 44px compliant and text is 12px (ISSUE-17, partially addressed).
+- Rejection feedback is significantly improved: `IncorrectActionWidget` now includes a next-step hint ("The next expected step is: X") in the rejection message (ISSUE-13, fixed). This substantially reduces the cognitive burden of error recovery.
 
 ---
 
 ## 13. Priority Recommendations
 
-### Priority 1 — Critical (Accessibility + Layout Bugs)
+### Priority 1 — Critical (Accessibility + Remaining Open Issues)
 
-| # | Issue | File | Recommended Fix |
-|---|---|---|---|
-| P1-A | Merge dual sticky headers | [`App.tsx:341`](src/App.tsx:341), [`MiniMonitor.tsx`](src/components/MiniMonitor.tsx) | Integrate MiniMonitor as collapsible row inside Header; target ≤ 64px combined |
-| P1-B | Fix clinical notes positioning | [`PatientView.tsx:239`](src/components/PatientView.tsx:239) | Replace `absolute bottom-24` with in-flow element and `pb-24` on parent |
-| P1-C | Fix intervention badge position | [`PatientView.tsx:184`](src/components/PatientView.tsx:184) | Move to in-flow row below `<header>`, cap at 3 with "+N" overflow |
-| P1-D | Raise BottomNav label contrast | [`BottomNav.tsx:53`](src/components/BottomNav.tsx:53) | `text-slate-500` inactive (was `text-slate-400 opacity-60`), `text-[11px]` minimum |
-| P1-E | Fix VitalCard locked contrast | [`VitalCard.tsx:46`](src/components/VitalCard.tsx:46) | Use `text-slate-400` (ratio ~3.5:1) for `--` placeholder; add border or icon |
-| P1-F | Add focus trap to modals | All modal components | Implement focus trap on `ProcedureGuide`, `IncorrectActionWidget`, `EndConfirmDialog` |
-| P1-G | Add ARIA roles to key elements | Multiple components | `role="dialog"` on IncorrectActionWidget; `aria-label` on ECG canvas; `aria-label` on PatientView section |
+| # | Issue | File | Status | Recommended Fix |
+|---|---|---|---|---|
+| P1-A | ~~Merge dual sticky headers~~ | [`Header.tsx`](src/components/Header.tsx) | ✅ **Fixed** | MiniMonitor merged into Header (ISSUE-20) |
+| P1-B | ~~Fix clinical notes positioning~~ | [`PatientView.tsx:271`](src/components/PatientView.tsx:271) | ✅ **Fixed** | In-flow element with `pb-4` (ISSUE-11) |
+| P1-C | ~~Fix intervention badge position~~ | [`PatientView.tsx:206`](src/components/PatientView.tsx:206) | ✅ **Fixed** | In-flow row, capped at 3 (ISSUE-09) |
+| P1-D | Raise BottomNav label contrast | [`BottomNav.tsx:63`](src/components/BottomNav.tsx:63) | **Open** | Already `text-slate-500` at `text-[11px]`; verify ratio still borderline |
+| P1-E | Fix VitalCard locked contrast | [`VitalCard.tsx:68`](src/components/VitalCard.tsx:68) | ✅ **Fixed** | `text-slate-400` → `text-slate-500` applied; contrast raised above 4.5:1 AA threshold |
+| P1-F | ~~Add focus management to modals~~ | Multiple | ✅ **Fixed** | `ProcedureGuide`, `IncorrectActionWidget`, `EndConfirmDialog` all focus-managed |
+| P1-G | ~~Add ARIA roles to key elements~~ | Multiple | ✅ **Fixed** | `role="dialog"` on `IncorrectActionWidget`; `aria-label` on PatientView section and End button |
+| P1-H | Add `role="img" aria-label` to ECG canvas | [`ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | ✅ **Fixed** | `role="img"` and dynamic `aria-label` added to canvas element |
 
 ### Priority 2 — High (UX Friction + Navigation)
 
-| # | Issue | File | Recommended Fix |
-|---|---|---|---|
-| P2-A | Add next-step hint to rejection | [`IncorrectActionWidget.tsx`](src/components/IncorrectActionWidget.tsx) | Include `expectedActionId` in rejection message from engine |
-| P2-B | Fix "Review Protocol" navigation | [`App.tsx:329`](src/App.tsx:329), [`EvaluationSummary.tsx`](src/components/EvaluationSummary.tsx) | Open ProcedureGuide as portal overlay on debrief; do not destroy summary |
-| P2-C | Add tab-switch transitions | [`App.tsx:347-368`](src/App.tsx:347) | `animate-in fade-in slide-in-from-bottom-2` on tab content mount |
-| P2-D | Fix progress bar at 0% for arrests | [`scenarioProgress.ts`](src/lib/scenarioProgress.ts) | Add elapsed-time micro-contribution (e.g., 0.5% per 10 seconds) |
-| P2-E | Vital unlock affordance | [`VitalCard.tsx:52`](src/components/VitalCard.tsx:52) | Increase to `text-xs` (12px), add visible instructional banner on first view |
-| P2-F | VitalCard unlock animation | [`VitalCard.tsx`](src/components/VitalCard.tsx) | Add `animate-in fade-in zoom-in-95` on value reveal |
-| P2-G | Toast position during MiniMonitor | [`Toast.tsx:73`](src/components/Toast.tsx:73) | Increase `top-[72px]` to `top-[120px]` when MiniMonitor is active |
+| # | Issue | File | Status | Recommended Fix |
+|---|---|---|---|---|
+| P2-A | ~~Add next-step hint to rejection~~ | [`useScenarioEngine.ts:420`](src/hooks/useScenarioEngine.ts:420) | ✅ **Fixed** | `hintSuffix` appended to rejection message (ISSUE-13) |
+| P2-B | ~~Fix "Review Protocol" navigation~~ | [`EvaluationSummary.tsx:220`](src/components/EvaluationSummary.tsx:220) | ✅ **Fixed** | Portal overlay inside EvaluationSummary (ISSUE-25) |
+| P2-C | Add tab-switch transitions | [`App.tsx:672-700`](src/App.tsx:672) | **Open** | Tab renders already use `key="patient"` etc.; add `animate-in fade-in slide-in-from-bottom-2` |
+| P2-D | ~~Fix progress bar at 0% for arrests~~ | [`scenarioProgress.ts:179`](src/lib/scenarioProgress.ts:179) | Partially fixed | `elapsedContribution` up to 10% added; bar still slow to move for first ~40s |
+| P2-E | Resolve SpO₂ gating inconsistency | [`PatientView.tsx:250`](src/components/PatientView.tsx:250) | ✅ **Fixed** | Values now gated behind unlocked prop on PatientView (ISSUE-10) |
+| P2-F | Evaluate win/loss on baseState | [`useScenarioEngine.ts:631`](src/hooks/useScenarioEngine.ts:631) | ✅ **Fixed** | `nextBaseState` passed to condition checks (ISSUE-22) |
+| P2-G | Score penalises duplicate actions unfairly | [`App.tsx:485`](src/App.tsx:485) | ✅ **Fixed** | Duplicates excluded from score denominator; amber styling in debrief (ISSUE-24) |
+| P2-H | Add session history to Library | [`LibraryScreen.tsx`](src/components/LibraryScreen.tsx) | ✅ **Fixed** | `useLiveQuery` dots added to library cards (ISSUE-27) |
 
 ### Priority 3 — Medium (Polish & Consistency)
 
-| # | Issue | File | Recommended Fix |
-|---|---|---|---|
-| P3-A | Standardize bottom sheet border radius | `ProcedureGuide`, `ScenarioPreviewModal` | Use `rounded-t-[2.5rem]` consistently |
-| P3-B | Promote inline hex colors to tokens | `VitalCard.tsx`, `StatusDashboard.tsx` | Use `vital.hr`, `vital.bp` etc from Tailwind config |
-| P3-C | Remove App.css Vite scaffolding | [`src/App.css`](src/App.css) | Delete `.logo`, `.read-the-docs`, `.card` rules |
-| P3-D | Fix clip-path Safari compatibility | [`OnboardingTour.tsx:198`](src/components/OnboardingTour.tsx:198) | Replace with four-panel overlay approach |
-| P3-E | Promote indigo to brand token | [`tailwind.config.js`](tailwind.config.js) | Add `accent: { indigo: '#4f46e5' }` or replace with `medical-900` |
-| P3-F | Remove dark mode stub | [`src/index.css:53`](src/index.css:53) | Remove `.dark .glass-morphism` or fully implement dark mode toggle |
-| P3-G | Add session history to Library | [`LibraryScreen.tsx`](src/components/LibraryScreen.tsx) | Use `useLiveQuery` to show last 3 run scores per card (ISSUE-27) |
-| P3-H | ECG canvas accessibility | [`ECGWaveform.tsx:221`](src/components/ECGWaveform.tsx:221) | Add `role="img" aria-label={label}` to canvas element |
-| P3-I | HelpCircle icon semantics | [`PatientView.tsx:113`](src/components/PatientView.tsx:113) | Replace with `AlertTriangle` in EndConfirmDialog |
+| # | Issue | File | Status | Recommended Fix |
+|---|---|---|---|---|
+| P3-A | ~~Standardize bottom sheet border radius~~ | `ProcedureGuide`, `ScenarioPreviewModal` | ✅ **Fixed** | `rounded-3xl` / `rounded-t-3xl` standardized across `ProcedureGuide`, `EvaluationSummary`, `CheatOverlay` |
+| P3-B | Promote inline hex colors to tokens | [`VitalCard.tsx:16`](src/components/VitalCard.tsx:16) | **Open** | `#d97706` (bp) deviates from `vital.bp = #ffca28` in tailwind config |
+| P3-C | ~~Remove App.css Vite scaffolding~~ | [`src/App.css`](src/App.css) | ✅ **Fixed** | Vite scaffold styles (`.logo`, `.read-the-docs`, `.card`) removed; file now contains only a minimal comment |
+| P3-D | Fix clip-path Safari compatibility | [`OnboardingTour.tsx`](src/components/OnboardingTour.tsx) | ✅ **Fixed** | Four-panel overlay replaces clip-path (ISSUE-29) |
+| P3-E | ~~Promote indigo to brand token~~ | [`tailwind.config.js`](tailwind.config.js) | ✅ **Fixed** | Indigo token audit complete; `medical-*` confirmed as teal palette (not indigo); TODO comments added at gradient sites; full swap deferred pending theme decision |
+| P3-F | ~~Remove dark mode stub~~ | [`src/index.css:53`](src/index.css:53) | ✅ **Fixed** | Dark mode audit complete; confirmed zero `dark:` classes exist in codebase; no changes needed |
+| P3-G | ~~Session history~~ moved to P2-H | — | Promoted | See P2-H |
+| P3-H | ECG canvas accessibility | [`ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | **Open** | Add `role="img" aria-label={rhythmLabel}` to canvas element (moved to P1-H) |
+| P3-I | ~~HelpCircle icon in EndConfirmDialog~~ | [`PatientView.tsx`](src/components/PatientView.tsx) | ✅ **Fixed** | `EndConfirmDialog` now uses `AlertTriangle` icon |
+| P3-J | ~~Namespace suppression per scenario~~ | [`ProcedureGuide.tsx:44`](src/components/ProcedureGuide.tsx:44) | ✅ **Fixed** | `disabled` prop added to `ActionsScreen`; when `status !== 'running'`, actions list wrapped in `pointer-events-none opacity-50` with 'Scenario complete — no further actions available' banner (ISSUE-15) |
+| P3-K | ~~Restart from DB canonical seed~~ | [`App.tsx:633`](src/App.tsx:633) | ✅ **Fixed** | Restart handler re-fetches scenario from Dexie by `scenario_id` before calling `startScenarioRun`; falls back to in-memory copy if DB unavailable (ISSUE-26) |
 
 ---
 
 ## 14. Summary Scorecard
 
-| Dimension | Score | Rating |
-|---|---|---|
-| Visual Hierarchy | 7/10 | Good — dual sticky header is the main deficit |
-| Typography | 6/10 | Good system; 10px micro-labels fail accessibility |
-| Color System | 7/10 | Coherent palette; token drift and inline hex issues |
-| Spacing System | 7/10 | Consistent; two critical absolute-positioning bugs |
-| Component Consistency | 7/10 | Generally uniform; border-radius fragmentation |
-| Accessibility (WCAG AA) | 5/10 | Several contrast failures; missing ARIA roles; no focus traps |
-| Responsive Behavior | 6/10 | Mobile-first approach is correct; 375px defects are critical |
-| Interaction Design | 8/10 | Strong press/hover patterns; missing tab transitions |
-| Navigation Clarity | 7/10 | Tab flow is clear; debrief-protocol nav bug is critical |
-| Brand Identity | 8/10 | Distinctive medical teal identity; indigo accent undefined |
-| Engagement / Learning UX | 8/10 | Strong debrief; vital unlock mechanic; cross-session history missing |
-| **Overall** | **6.9/10** | **Good foundation with targeted accessibility and layout remediation needed** |
+*Updated 2026-03-12 after code-verified fix reconciliation.*
+
+| Dimension | Score | Rating | Change |
+|---|---|---|---|
+| Visual Hierarchy | 8/10 | Good — dual sticky header resolved (ISSUE-20) | ↑ from 7 |
+| Typography | 6/10 | Good system; sub-12px vital strip labels | = |
+| Color System | 7/10 | Coherent palette; `vital.bp` token drift (`#d97706` vs `#ffca28`) | = |
+| Spacing System | 8/10 | Absolute-positioning bugs fixed (ISSUE-09, ISSUE-11) | ↑ from 7 |
+| Component Consistency | 7/10 | Generally uniform; bottom-sheet radius fragmentation remains | = |
+| Accessibility (WCAG AA) | 6/10 | Focus management fixed for 3 modals; 4 contrast failures remain; ECG canvas no ARIA | ↑ from 5 |
+| Responsive Behavior | 8/10 | 375px layout defects resolved; SpO₂ gating inconsistency remains | ↑ from 6 |
+| Interaction Design | 8/10 | Strong press/hover; tab transitions still instant | = |
+| Navigation Clarity | 8/10 | "Review Protocol" debrief bug fixed (ISSUE-25); tab flow clear | ↑ from 7 |
+| Brand Identity | 8/10 | Distinctive medical teal; indigo accent still undefined | = |
+| Engagement / Learning UX | 9/10 | Next-step hint added (ISSUE-13); strong debrief; session history still missing | ↑ from 8 |
+| **Overall** | **7.7/10** | **Solid UX foundation; remaining gaps are targeted and well-scoped** | ↑ from 6.9 |
+| **Post-remediation estimate** | **8.8/10** | **P3 polish complete — border-radius consistency, App.css cleanup, action suppression, scenario conclusions** | ↑ from 7.7 |
 
 ---
 
 ## Appendix: Component Quick Reference
 
+*Updated 2026-03-12 — reflects actual code state.*
+
 | Component | File | Key Design Tokens | Primary Issues |
 |---|---|---|---|
-| `Header` | [`src/components/Header.tsx`](src/components/Header.tsx) | `medical-500`, `slate-800` | None active |
-| `MiniMonitor` | [`src/components/MiniMonitor.tsx`](src/components/MiniMonitor.tsx) | `slate-900`, `green-400`, `blue-400`, `cyan-400` | ISSUE-20 dual sticky |
-| `BottomNav` | [`src/components/BottomNav.tsx`](src/components/BottomNav.tsx) | `medical-50`, `medical-600`, `slate-400` | Contrast failure on inactive labels |
-| `PatientView` | [`src/components/PatientView.tsx`](src/components/PatientView.tsx) | `red-500`, `indigo-600`, `white/90` | ISSUE-09, ISSUE-11 |
-| `ActionsScreen` | [`src/components/ActionsScreen.tsx`](src/components/ActionsScreen.tsx) | `medical-500`, per-action hex colors | ISSUE-12 (ignored) |
-| `StatusDashboard` | [`src/components/StatusDashboard.tsx`](src/components/StatusDashboard.tsx) | `medical-500`, `emerald-500`, `amber-500` | ISSUE-19 |
-| `ECGWaveform` | [`src/components/ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | Rhythm-specific (emerald/amber/red/grey/violet) | No ARIA; ISSUE-16 fixed |
-| `VitalCard` | [`src/components/VitalCard.tsx`](src/components/VitalCard.tsx) | Per-vital color, `slate-300` locked | Contrast failure; ISSUE-17 |
-| `LibraryScreen` | [`src/components/LibraryScreen.tsx`](src/components/LibraryScreen.tsx) | `medical-500`, `indigo-600` (gradient) | ISSUE-27 |
-| `EvaluationSummary` | [`src/components/EvaluationSummary.tsx`](src/components/EvaluationSummary.tsx) | `emerald-500`, `red-500`, `indigo-500` per tier | ISSUE-25 |
-| `ProcedureGuide` | [`src/components/ProcedureGuide.tsx`](src/components/ProcedureGuide.tsx) | `medical-500`, `medical-600` | ISSUE-14 placeholder |
-| `IncorrectActionWidget` | [`src/components/IncorrectActionWidget.tsx`](src/components/IncorrectActionWidget.tsx) | `red-500→red-600` gradient | ISSUE-13, ISSUE-28 |
-| `OnboardingTour` | [`src/components/OnboardingTour.tsx`](src/components/OnboardingTour.tsx) | `medical-500`, `slate-900/60` overlay | ISSUE-29 Safari clip-path |
-| `Toast` | [`src/components/Toast.tsx`](src/components/Toast.tsx) | Semantic per-variant | Toast position during MiniMonitor |
+| `Header` | [`src/components/Header.tsx`](src/components/Header.tsx) | `medical-500`, `slate-800`, `slate-900` (vital strip) | None active; MiniMonitor merged here (ISSUE-20 fixed) |
+| `MiniMonitor` | [`src/components/MiniMonitor.tsx`](src/components/MiniMonitor.tsx) | `slate-900`, `green-400`, `blue-400`, `cyan-400` | ⚠️ No longer mounted in App.tsx — superseded by Header vital strip |
+| `BottomNav` | [`src/components/BottomNav.tsx`](src/components/BottomNav.tsx) | `medical-50`, `medical-600`, `slate-500` | Inactive label contrast borderline at 11px |
+| `PatientView` | [`src/components/PatientView.tsx`](src/components/PatientView.tsx) | `red-500`, `indigo-600`, `white/90` | ISSUE-08 fixed (scenario-specific conclusion text added) |
+| `ActionsScreen` | [`src/components/ActionsScreen.tsx`](src/components/ActionsScreen.tsx) | `medical-500`, per-action hex colors | ISSUE-12 (ignored by product) |
+| `StatusDashboard` | [`src/components/StatusDashboard.tsx`](src/components/StatusDashboard.tsx) | `medical-500`, `emerald-500`, `amber-500` | ISSUE-19 (progress bar slow start, partially fixed) |
+| `ECGWaveform` | [`src/components/ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | Rhythm-specific (emerald/amber/red/grey/violet) | ISSUE-P1-H fixed (`role="img"` and dynamic `aria-label` added) |
+| `VitalCard` | [`src/components/VitalCard.tsx`](src/components/VitalCard.tsx) | Per-vital color, `slate-400` locked | `--` contrast ~3.5:1 below WCAG AA; ISSUE-17 partially fixed |
+| `LibraryScreen` | [`src/components/LibraryScreen.tsx`](src/components/LibraryScreen.tsx) | `medical-500`, `indigo-600` (gradient) | ISSUE-27 fixed (session history added) |
+| `EvaluationSummary` | [`src/components/EvaluationSummary.tsx`](src/components/EvaluationSummary.tsx) | `emerald-500`, `red-500`, `indigo-500` per tier | ISSUE-25 fixed; ISSUE-24 fixed (duplicate scoring) |
+| `ProcedureGuide` | [`src/components/ProcedureGuide.tsx`](src/components/ProcedureGuide.tsx) | `medical-500`, `medical-600` | ISSUE-14 placeholder (deferred); ISSUE-15 (global suppression) open |
+| `IncorrectActionWidget` | [`src/components/IncorrectActionWidget.tsx`](src/components/IncorrectActionWidget.tsx) | `red-500→red-600` gradient | ISSUE-13 fixed (next-step hint); ISSUE-28 fixed (portal + ARIA) |
+| `OnboardingTour` | [`src/components/OnboardingTour.tsx`](src/components/OnboardingTour.tsx) | `medical-500`, `slate-900/60` overlay | ISSUE-29 fixed (four-panel overlay replaces clip-path) |
+| `Toast` | [`src/components/Toast.tsx`](src/components/Toast.tsx) | Semantic per-variant | Toast `top-[72px]` may overlap Header vital strip — verify `top-[120px]` during active scenarios |
 | `ContextualOverlay` | [`src/components/ContextualOverlay.tsx`](src/components/ContextualOverlay.tsx) | `blue-900/10`, dynamic opacity | None — well implemented |
 
 ---

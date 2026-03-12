@@ -196,7 +196,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
             {/* Four-panel overlay (Safari-safe — no clip-path) */}
             {/* Top panel */}
             <div
-                className="pointer-events-auto"
+                className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
                 onClick={handleComplete}
                 style={{
                     position: 'fixed',
@@ -204,13 +204,12 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
                     left: 0,
                     right: 0,
                     height: targetRect.top,
-                    background: 'rgba(0,0,0,0.6)',
-                    zIndex: 40,
+                    zIndex: 999,
                 }}
             />
             {/* Bottom panel */}
             <div
-                className="pointer-events-auto"
+                className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
                 onClick={handleComplete}
                 style={{
                     position: 'fixed',
@@ -218,13 +217,12 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    background: 'rgba(0,0,0,0.6)',
-                    zIndex: 40,
+                    zIndex: 999,
                 }}
             />
             {/* Left panel */}
             <div
-                className="pointer-events-auto"
+                className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
                 onClick={handleComplete}
                 style={{
                     position: 'fixed',
@@ -232,13 +230,12 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
                     left: 0,
                     width: targetRect.left,
                     height: targetRect.height,
-                    background: 'rgba(0,0,0,0.6)',
-                    zIndex: 40,
+                    zIndex: 999,
                 }}
             />
             {/* Right panel */}
             <div
-                className="pointer-events-auto"
+                className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
                 onClick={handleComplete}
                 style={{
                     position: 'fixed',
@@ -246,8 +243,7 @@ const OnboardingTour: React.FC<OnboardingTourProps> = ({ activeTab, setActiveTab
                     left: targetRect.right,
                     right: 0,
                     height: targetRect.height,
-                    background: 'rgba(0,0,0,0.6)',
-                    zIndex: 40,
+                    zIndex: 999,
                 }}
             />
 

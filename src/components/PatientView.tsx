@@ -253,7 +253,7 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
                             <Wind size={16} />
                             <span className="text-[10px] font-black uppercase tracking-widest opacity-70">SpO2</span>
                         </div>
-                        <div className="text-2xl font-black leading-none">{o2Saturation}%</div>
+                        <div className="text-2xl font-black leading-none">{unlocked ? `${o2Saturation}%` : '--'}</div>
                     </div>
 
                     <div className={`p-4 rounded-2xl border backdrop-blur-md shadow-xl flex flex-col items-center transition-all duration-500 ${isArrest ? 'bg-red-500 text-white border-red-400 animate-pulse' : 'bg-white/90 text-slate-800 border-slate-100'}`}>
@@ -261,7 +261,7 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
                             <Activity size={16} />
                             <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Rhythm</span>
                         </div>
-                        <div className="text-sm font-black whitespace-nowrap text-center">{rhythm.toUpperCase()}</div>
+                        <div className="text-sm font-black whitespace-nowrap text-center">{unlocked ? rhythm.toUpperCase() : '--'}</div>
                     </div>
                 </aside>
             </article>

@@ -295,15 +295,71 @@ function isInterventionLog(log: SessionLogEvent): log is Extract<SessionLogEvent
   return log.event_type === 'intervention';
 }
 
-function buildActionFeedback(logs: SessionLogEvent[]): ActionFeedback[] {
-  return logs.filter(isInterventionLog).map((log) => ({
-    id: log.id?.toString() ?? `${log.session_id}-${log.timestamp}`,
-    name: prettifyInterventionId(log.details.intervention_id),
-    isCorrect: !log.details.rejected,
-    comment: log.details.message,
-    timestamp: formatTimestamp(log.sim_time_sec),
-    reviewId: log.details.rejected ? log.details.intervention_id : undefined,
-  }));
+function isSequenceError(message: string): boolean {
+  return message.startsWith('Protocol Deviation: Incorrect sequence');
+}
+
+function buildActionFeedback(
+  logs: SessionLogEvent[],
+  scenario: Scenario | null,
+): ActionFeedback[] {
+  const interventionLogs = logs.filter(isInterventionLog);
+  const sequence = scenario?.expected_sequence ?? [];
+
+  // Replay pass: compute expected action at each rejected step
+  let seqPos = 0;
+  const expectedMap = new Map<string, { label: string; rationale: string | undefined }>();
+
+  for (const log of interventionLogs) {
+    const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
+    const isDuplicateMsg =
+      log.details.rejected === true &&
+      typeof log.details.message === 'string' &&
+      log.details.message.startsWith('Already');
+
+    if (!log.details.rejected) {
+      // Accepted — advance seqPos if this action matched the expected step
+      if (seqPos < sequence.length && sequence[seqPos] === log.details.intervention_id) {
+        seqPos++;
+      }
+    } else if (!isDuplicateMsg) {
+      // Any non-duplicate rejection — record what should have been done at this sequence position
+      if (seqPos < sequence.length) {
+        const expectedId = sequence[seqPos];
+        const expectedDef = scenario?.interventions[expectedId];
+        expectedMap.set(logId, {
+          label: prettifyInterventionId(expectedId),
+          rationale: expectedDef?.rationale,
+        });
+      }
+      // seqPos does NOT advance on rejection
+    }
+  }
+
+  // Map pass: construct ActionFeedback array
+  return interventionLogs.map((log) => {
+    const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
+    const isDuplicate =
+      log.details.rejected === true &&
+      typeof log.details.message === 'string' &&
+      log.details.message.startsWith('Already');
+
+    const expected = expectedMap.get(logId);
+
+    return {
+      id: logId,
+      name: prettifyInterventionId(log.details.intervention_id),
+      isCorrect: !log.details.rejected,
+      comment: log.details.message,
+      timestamp: formatTimestamp(log.sim_time_sec),
+      reviewId: log.details.rejected && !isDuplicate ? log.details.intervention_id : undefined,
+      ...(isDuplicate ? { isDuplicate: true } : {}),
+      ...(expected ? {
+        expectedActionLabel: expected.label,
+        ...(expected.rationale ? { expectedActionRationale: expected.rationale } : {}),
+      } : {}),
+    };
+  });
 }
 
 function buildSessionLogEvent(
@@ -468,7 +524,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     void (async () => {
       const logs = await db.sessionLogs.where('session_id').equals(sessionId).sortBy('timestamp');
       if (!cancelled) {
-        setEvalActions(buildActionFeedback(logs));
+        setEvalActions(buildActionFeedback(logs, activeScenario));
       }
     })();
 
@@ -478,12 +534,11 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   }, [sessionId, showSummary]);
 
   const score = useMemo(() => {
-    if (evalActions.length === 0) {
-      return 0;
-    }
-
-    const correctActions = evalActions.filter((action) => action.isCorrect).length;
-    return Math.round((correctActions / evalActions.length) * 100);
+    const correctActions = evalActions.filter((a) => a.isCorrect).length;
+    const sequenceErrors = evalActions.filter((a) => !a.isCorrect && !a.isDuplicate).length;
+    const totalScoredActions = correctActions + sequenceErrors;
+    if (totalScoredActions === 0) return 0;
+    return Math.round((correctActions / totalScoredActions) * 100);
   }, [evalActions]);
 
   const scenarioProgressPct = useMemo(() => (
@@ -630,7 +685,13 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           actions={evalActions}
           clinicalConclusion={clinicalConclusion}
           outcome={scenarioOutcome}
-          onRestart={() => startScenarioRun(activeScenario)}
+          conclusion={activeScenario?.conclusion}
+          onRestart={async () => {
+            // P3-C (ISSUE-26): Re-fetch from Dexie to guarantee a clean seed copy,
+            // avoiding any state mutation that may have occurred during the run.
+            const fresh = await db.scenarios.get(activeScenario!.scenario_id);
+            startScenarioRun(fresh ?? activeScenario!);
+          }}
           onReturnToLibrary={() => {
             setActiveScenario(null);
             setSessionId(null);
@@ -683,6 +744,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
               onReviewActionHandled={() => setReviewActionId(null)}
               activeInterventions={activeInterventions}
               elapsedSec={elapsedSec}
+              disabled={status !== 'running'}
             />
           </div>
         )}

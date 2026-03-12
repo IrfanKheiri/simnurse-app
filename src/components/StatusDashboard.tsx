@@ -163,6 +163,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                     />
                 </section>
 
+                {/* TODO: add medical-N token for gradient end-stop — indigo-50 kept as decorative gradient accent (no equivalent medical-* shade at this depth) */}
                 <aside id="progress-bar" className="mt-8 p-4 rounded-xl bg-gradient-to-r from-medical-50 to-indigo-50 border border-medical-100 flex items-start gap-4 shadow-sm">
                     <div className="p-2 bg-medical-500 rounded-lg text-white shrink-0">
                         <Zap size={20} />

@@ -65,7 +65,7 @@ const VitalCard: React.FC<VitalCardProps> = ({
             <div className="mt-auto">
                 {isLocked ? (
                     <div className="flex flex-col gap-1">
-                        <span className="text-2xl font-bold text-slate-400 italic">--</span>
+                        <span className="text-2xl font-bold text-slate-500 italic">--</span>
                         <button
                             type="button"
                             onClick={onUnlock}
