@@ -295,10 +295,6 @@ function isInterventionLog(log: SessionLogEvent): log is Extract<SessionLogEvent
   return log.event_type === 'intervention';
 }
 
-function isSequenceError(message: string): boolean {
-  return message.startsWith('Protocol Deviation: Incorrect sequence');
-}
-
 function buildActionFeedback(
   logs: SessionLogEvent[],
   scenario: Scenario | null,
