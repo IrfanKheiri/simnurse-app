@@ -192,6 +192,7 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
                     {/* R-6: End button upgraded to solid red for clear destructive CTA */}
                     {/* FIX (P1-G): Add aria-label to End button */}
                     <button
+                        id="finish-case-btn"
                         type="button"
                         onClick={() => setShowEndConfirm(true)}
                         className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-2xl active:scale-95 transition-all flex items-center gap-2"
@@ -226,6 +227,7 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
                 <div id="patient-illustration-wrapper" className="relative w-full max-w-[320px] aspect-[3/4] rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
                     {/* Base Layer: Patient Illustration */}
                     <img
+                        id="patient-illustration"
                         src={patientIllustrationSrc}
                         alt="Patient Illustration"
                         className="w-full h-full object-cover"
@@ -268,7 +270,7 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
 
             {/* FIX (H11): Dynamic clinical notes based on live vitals */}
             {/* FIX (P1-B): Converted from absolute to in-flow, sits naturally below illustration */}
-            <div id="clinical-notes-container" className="w-full px-4 pb-4">
+            <div id="patient-narrative" className="w-full px-4 pb-4">
                 <div className={`backdrop-blur-md rounded-2xl p-4 border shadow-premium text-center transition-all duration-500 ${isArrest ? 'bg-red-50/90 border-red-200' : 'bg-white/80 border-white'}`}>
                     {/* R-7: Standardized to font-medium italic (font-bold italic is harder to read at 14px) */}
                     <p className={`text-xs font-medium italic leading-relaxed ${isArrest ? 'text-red-700' : 'text-slate-600'}`}>

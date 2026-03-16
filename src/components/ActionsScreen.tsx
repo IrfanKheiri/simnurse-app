@@ -809,7 +809,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                         <Search size={18} className="text-slate-400" />
                     </div>
                     <input
-                        id="action-search-input"
+                        id="actions-search"
                         type="text"
                         className="block w-full rounded-2xl border-none bg-slate-50 py-4 pl-11 pr-4 text-sm font-medium placeholder:text-slate-400 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-medical-500/20"
                         placeholder="Search procedures, meds..."
@@ -819,7 +819,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                 </form>
 
                 {/* Category filter pills — matches LibraryScreen protocol pill pattern */}
-                <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
+                <div id="actions-categories" className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
                     <button
                         type="button"
                         onClick={() => setSelectedCategory('All')}
@@ -861,7 +861,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                     if (catActions.length === 0) return null;
 
                     return (
-                        <section key={category.id} id={`category-group-${category.id}`} className="mb-8 last:mb-0">
+                        <section key={category.id} id={category.id === 'meds' ? 'actions-category-meds' : `category-group-${category.id}`} className="mb-8 last:mb-0">
                             <header className="flex items-center gap-3 mb-4">
                                 <div className="p-2 bg-white rounded-lg shadow-sm text-slate-800">
                                     <category.icon size={16} style={{ color: category.color }} />
@@ -873,14 +873,14 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                             </header>
 
                             <menu className="space-y-3 p-0 m-0">
-                                {catActions.map((action: Action) => {
+                                {catActions.map((action: Action, actionIdx: number) => {
                                     const cooldownSec = getCooldownRemaining(action.id, activeInterventions, elapsedSec);
                                     const activeEntry = activeInterventions.find(i => i.id === action.id);
                                     const progressPct = cooldownSec !== null && activeEntry?.duration_sec !== undefined
                                         ? ((activeEntry.duration_sec - cooldownSec) / activeEntry.duration_sec) * 100
                                         : null;
                                     return (
-                                        <li key={action.id} className="list-none">
+                                        <li key={action.id} id={actionIdx === 0 && category.id === filteredActions[0]?.categoryId ? 'action-card-first' : undefined} className="list-none">
                                             <button
                                                 id={`action-btn-${action.id}`}
                                                 type="button"

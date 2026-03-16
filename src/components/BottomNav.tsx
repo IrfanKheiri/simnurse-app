@@ -38,7 +38,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, rejectio
                     return (
                         <button
                             key={tab.id}
-                            id={`nav-tab-${tab.id}`}
+                            id={`bottom-nav-${tab.id}`}
                             type="button"
                             onClick={() => setActiveTab(tab.id)}
                             className={cn(

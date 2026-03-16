@@ -6,14 +6,17 @@ import BottomNav from './components/BottomNav';
 import ContextualOverlay from './components/ContextualOverlay';
 import EvaluationSummary, { type ActionFeedback } from './components/EvaluationSummary';
 import Header from './components/Header';
+import HelpPanel from './components/HelpPanel';
 import CorrectActionWidget from './components/CorrectActionWidget';
 import IncorrectActionWidget from './components/IncorrectActionWidget';
 import LibraryScreen from './components/LibraryScreen';
-import OnboardingTour from './components/OnboardingTour';
 import PatientView from './components/PatientView';
 import StatusDashboard from './components/StatusDashboard';
+import WalkthroughEngine from './components/WalkthroughEngine';
 import { ToastProvider } from './components/Toast';
 import { useToast } from './components/toast-context';
+import { useHelpSystem } from './hooks/useHelpSystem';
+import type { AppContext } from './data/helpContent';
 import { useScenarioEngine } from './hooks/useScenarioEngine';
 import { db } from './lib/db';
 import { calculateScenarioProgress } from './lib/scenarioProgress';
@@ -400,7 +403,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   const [activeTab, setActiveTab] = useState('patient');
   const [reviewActionId, setReviewActionId] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
-  const [tourKey, setTourKey] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [incorrectActionMessage, setIncorrectActionMessage] = useState<string | null>(null);
   const [correctActionMessage, setCorrectActionMessage] = useState<string | null>(null);
   const [scenarioOutcome, setScenarioOutcome] = useState<'success' | 'failed' | 'manual'>('manual');
@@ -452,7 +455,19 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     [],
   );
 
+  const helpContext = useMemo<AppContext>(() => {
+    if (!activeScenario && previewOpen) return 'preview_modal';
+    if (!activeScenario) return 'library';
+    if (showSummary) return 'debrief';
+    if (activeTab === 'actions') return 'actions';
+    if (activeTab === 'status') return 'status';
+    return 'patient';
+  }, [activeScenario, previewOpen, showSummary, activeTab]);
+
+  const helpSystem = useHelpSystem(helpContext);
+
   const startScenarioRun = useCallback((scenario: Scenario) => {
+    setPreviewOpen(false);
     setUnlocked({ hr: false, spo2: false, bp: false, rr: false });
     setRejectionCount(0);
     // FIX (ISSUE-05): Do NOT clear suppressedProcedures here. Learners who have
@@ -648,10 +663,8 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   }, [evalActions, scenarioOutcome]);
 
   const handleHelpClick = useCallback(() => {
-    localStorage.removeItem('simnurse_onboarding_complete');
-    localStorage.removeItem('simnurse_welcome_dismissed');
-    setTourKey((previousValue) => previousValue + 1);
-  }, []);
+    helpSystem.openPanel();
+  }, [helpSystem]);
 
   const handleManualFinish = useCallback(async () => {
     const manualEndEvent: ManualEndEvent = {
@@ -667,8 +680,16 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   if (!activeScenario) {
     return (
       <div id="app-shell" className={APP_SHELL_CLASS}>
-        <Header onHelpClick={handleHelpClick} />
-        <LibraryScreen key={tourKey} onSelectScenario={startScenarioRun} />
+        <Header
+          onHelpClick={handleHelpClick}
+          walkthroughCompleted={helpSystem.wasWalkthroughCompleted(helpSystem.content.walkthroughId)}
+        />
+        <LibraryScreen
+          onSelectScenario={startScenarioRun}
+          onPreviewStateChange={setPreviewOpen}
+        />
+        <HelpPanel helpSystem={helpSystem} />
+        <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} />
       </div>
     );
   }
@@ -682,9 +703,8 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           clinicalConclusion={clinicalConclusion}
           outcome={scenarioOutcome}
           conclusion={activeScenario?.conclusion}
+          onHelpClick={() => helpSystem.openPanel()}
           onRestart={async () => {
-            // P3-C (ISSUE-26): Re-fetch from Dexie to guarantee a clean seed copy,
-            // avoiding any state mutation that may have occurred during the run.
             const fresh = await db.scenarios.get(activeScenario!.scenario_id);
             startScenarioRun(fresh ?? activeScenario!);
           }}
@@ -697,10 +717,10 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
             setActiveTab('patient');
             onScenarioActiveChange(false);
           }}
-          onReviewProcedure={(_actionId) => {
-            // Review is now handled inside EvaluationSummary via ProcedureGuide portal
-          }}
+          onReviewProcedure={(_actionId) => {}}
         />
+        <HelpPanel helpSystem={helpSystem} />
+        <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} />
       </div>
     );
   }
@@ -709,6 +729,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     <div id="app-shell" className={APP_SHELL_CLASS}>
       <Header
         onHelpClick={handleHelpClick}
+        walkthroughCompleted={helpSystem.wasWalkthroughCompleted(helpSystem.content.walkthroughId)}
         monitorState={vitals}
         unlocked={unlocked}
         urgencyItems={urgencyItems}
@@ -767,7 +788,8 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         }}
         rejectionCount={rejectionCount}
       />
-      <OnboardingTour key={tourKey} activeTab={activeTab} setActiveTab={setActiveTab} scenarioActive={!!activeScenario} />
+      <HelpPanel helpSystem={helpSystem} />
+      <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} />
       {cheatModeEnabled && cheatVisible && (
         <CheatOverlay
           scenario={activeScenario}

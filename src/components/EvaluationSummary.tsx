@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, AlertTriangle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen, Lightbulb } from 'lucide-react';
+import { CheckCircle2, AlertCircle, AlertTriangle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen, Lightbulb, HelpCircle } from 'lucide-react';
 import ProcedureGuide from './ProcedureGuide';
 import { ACTIONS } from './ActionsScreen';
 import type { Action } from './ActionsScreen';
@@ -30,6 +30,7 @@ interface EvaluationSummaryProps {
     /** FIX (H9): Now receives an onReturnToLibrary callback */
     onReturnToLibrary: () => void;
     onReviewProcedure: (id: string) => void;
+    onHelpClick?: () => void;
 }
 
 const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
@@ -209,7 +210,8 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
     conclusion,
     onRestart,
     onReturnToLibrary,
-    onReviewProcedure: _onReviewProcedure
+    onReviewProcedure: _onReviewProcedure,
+    onHelpClick,
 }) => {
     const [reviewAction, setReviewAction] = useState<Action | null>(null);
 
@@ -236,15 +238,28 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
             {/* Header */}
             <header className="p-6 bg-white border-b border-slate-100 flex items-center justify-between sticky top-0 z-10 shadow-sm">
                 <h1 className="text-xl font-black text-slate-800 tracking-tight">Post-Scenario Debrief</h1>
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full shadow-sm bg-slate-50 ${outcomeColor}`}>
-                    <Clock size={12} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">{outcomeLabel}</span>
+                <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full shadow-sm bg-slate-50 ${outcomeColor}`}>
+                        <Clock size={12} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">{outcomeLabel}</span>
+                    </div>
+                    {onHelpClick && (
+                        <button
+                            type="button"
+                            onClick={onHelpClick}
+                            title="Open Help"
+                            aria-label="Open debrief help"
+                            className="p-2 rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100 transition-colors"
+                        >
+                            <HelpCircle size={18} />
+                        </button>
+                    )}
                 </div>
             </header>
 
             <article className="p-6">
                 {/* Score Card */}
-                <section id="score-card-container" className="bg-white rounded-3xl p-4 shadow-premium border border-slate-100 mb-8 overflow-hidden relative">
+                <section id="score-gauge" className="bg-white rounded-3xl p-4 shadow-premium border border-slate-100 mb-8 overflow-hidden relative">
                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-slate-900 pointer-events-none">
                         <Trophy size={160} strokeWidth={1} />
                     </div>
@@ -261,7 +276,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                 )}
 
                 {/* FIX (H8): Clinical Conclusion — now outcome-specific */}
-                <section className="mb-10 group">
+                <section id="clinical-conclusion" className="mb-10 group">
                     <header className="flex items-center gap-3 mb-4">
                         {/* TODO: add medical-N token for success/manual accent — indigo-500 kept as decorative gradient fallback */}
                         <div className={`p-2 rounded-xl text-white shadow-lg ${outcome === 'failed' ? 'bg-red-500 shadow-red-100' : 'bg-indigo-500 shadow-indigo-100'}`}>
@@ -282,7 +297,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                 </section>
 
                 {/* Timeline of Actions */}
-                <section id="timeline-container" className="mb-10">
+                <section id="action-timeline" className="mb-10">
                     <header className="flex items-center gap-3 mb-6">
                         <div className="p-2 bg-medical-500 rounded-xl text-white shadow-lg shadow-medical-100">
                             <Clock size={18} />
@@ -304,7 +319,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                 )}
 
                 {/* Action Buttons */}
-                <nav className="flex flex-col gap-3 mt-4">
+                <nav id="debrief-cta-row" className="flex flex-col gap-3 mt-4">
                     <button
                         id="restart-scenario-btn"
                         type="button"

@@ -9,6 +9,7 @@ const WELCOME_DISMISSED_KEY = 'simnurse_welcome_dismissed';
 
 interface LibraryScreenProps {
   onSelectScenario: (scenario: Scenario) => void;
+  onPreviewStateChange?: (isOpen: boolean) => void;
 }
 
 const getScenarioIcon = (title: string) => {
@@ -165,7 +166,7 @@ const ScenarioPreviewModal: React.FC<ScenarioPreviewModalProps> = ({ scenario, o
 
 // ─── Library Screen ───────────────────────────────────────────────────────────
 
-const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
+const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario, onPreviewStateChange }) => {
   const [showWelcome, setShowWelcome] = useState<boolean>(
     () => localStorage.getItem(WELCOME_DISMISSED_KEY) !== 'true'
   );
@@ -183,6 +184,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
 
   const handleCardClick = (scenario: Scenario) => {
     setPreviewScenario(scenario);
+    onPreviewStateChange?.(true);
   };
 
   const clearScenarioHistory = async (scenarioId: string, e: React.MouseEvent | React.KeyboardEvent) => {
@@ -198,11 +200,13 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
     if (previewScenario) {
       onSelectScenario(previewScenario);
       setPreviewScenario(null);
+      onPreviewStateChange?.(false);
     }
   };
 
   const handleCancelPreview = () => {
     setPreviewScenario(null);
+    onPreviewStateChange?.(false);
   };
 
   // Fetch scenarios from Dexie
@@ -256,6 +260,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
         <div className="relative mt-3">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
+            id="scenario-search"
             type="search"
             placeholder="Search scenarios…"
             value={searchQuery}
@@ -282,7 +287,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
         </div>
       </header>
 
-      <section id="scenarios-list-container" className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
+      <section id="scenario-list" className="flex-1 overflow-y-auto px-6 pt-6 pb-4">
         {/* TODO: add medical-N token for gradient end-stop — indigo-600 kept as decorative gradient accent (no equivalent medical-* shade at this depth) */}
         {showWelcome && (
           <div
@@ -378,7 +383,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
 
           return (
             <menu className="space-y-4 p-0 m-0">
-              {filteredScenarios.map((scenario) => {
+              {filteredScenarios.map((scenario, scenarioIdx) => {
                  const Icon = getScenarioIcon(scenario.title);
 
                  return (
@@ -401,7 +406,9 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario }) => {
                       <div className="flex flex-wrap items-center gap-2">
                           {scenario.meta ? (
                             <>
-                              <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                              <span
+                                id={scenarioIdx === 0 ? 'scenario-difficulty-badge' : undefined}
+                                className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                                 scenario.meta.difficulty === 'Advanced'
                                   ? 'bg-red-50 text-red-600'
                                   : scenario.meta.difficulty === 'Intermediate'

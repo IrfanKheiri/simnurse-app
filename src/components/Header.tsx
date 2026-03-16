@@ -75,6 +75,7 @@ function vitalValueClass(tier: 'critical' | 'warning' | 'normal', unlockedColor:
 
 interface HeaderProps {
   onHelpClick: () => void;
+  walkthroughCompleted?: boolean;
   monitorState?: PatientState | null;
   unlocked?: Record<'hr' | 'spo2' | 'bp' | 'rr', boolean>;
   urgencyItems?: UrgencyItem[];
@@ -92,6 +93,7 @@ interface HeaderProps {
 // + decay arrows) + UrgencyStrip (failure proximity + intervention countdowns).
 const Header: React.FC<HeaderProps> = ({
   onHelpClick,
+  walkthroughCompleted = true,
   monitorState = null,
   unlocked,
   urgencyItems = [],
@@ -124,16 +126,24 @@ const Header: React.FC<HeaderProps> = ({
             </span>
           )}
 
-          <button
-            id="help-btn"
-            onClick={onHelpClick}
-            type="button"
-            className="min-h-11 min-w-11 rounded-xl bg-slate-50 p-2.5 text-slate-500 transition-colors hover:bg-slate-100 active:scale-95"
-            title="Restart onboarding tour"
-            aria-label="Help — restart onboarding tour"
-          >
-            <HelpCircle size={20} />
-          </button>
+          <div className="relative">
+            <button
+              id="help-btn"
+              onClick={onHelpClick}
+              type="button"
+              className="min-h-11 min-w-11 rounded-xl bg-slate-50 p-2.5 text-slate-500 transition-colors hover:bg-slate-100 active:scale-95"
+              title="Open Help"
+              aria-label="Open contextual help panel"
+            >
+              <HelpCircle size={20} />
+            </button>
+            {!walkthroughCompleted && (
+              <span
+                aria-hidden="true"
+                className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white animate-pulse"
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -223,11 +233,15 @@ const Header: React.FC<HeaderProps> = ({
       )}
 
       {/* ── UrgencyStrip: merged failure proximity + intervention countdowns ── */}
-      {hasMonitor && hasUrgency && (
+      {/* Render always when monitor is active so walkthrough can target it */}
+      {hasMonitor && (
         <div
           id="urgency-strip"
-          className="flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 py-1.5 scrollbar-none"
+          className={`flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 scrollbar-none transition-all duration-200 ${
+            hasUrgency ? 'py-1.5 min-h-[2rem]' : 'py-0 overflow-hidden'
+          }`}
           aria-label="Timing alerts"
+          style={{ height: hasUrgency ? undefined : 0 }}
         >
           {urgencyItems.map((item) => (
             <span
