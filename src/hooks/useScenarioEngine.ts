@@ -542,7 +542,7 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
             type: 'intervention',
             intervention_id: interventionId,
             rejected: false,
-            message: 'Administered but ineffective.',
+            message: 'Administered correctly — no immediate physiological response. Continue protocol.',
           },
         ],
       };

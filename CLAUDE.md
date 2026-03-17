@@ -10,6 +10,7 @@ npm run build        # TypeScript check + Vite production build (output: dist/)
 npm run lint         # ESLint check
 npm run test         # Vitest unit/component tests (jsdom)
 npm run test:e2e     # Playwright E2E tests (headless, all projects)
+npm run preview      # Preview production build locally
 
 # Run a single unit test file
 npx vitest run src/path/to/file.test.ts
@@ -18,9 +19,13 @@ npx vitest run src/path/to/file.test.ts
 npm run test:e2e:ui            # Interactive Playwright UI
 npm run test:e2e:headed        # Visible browser
 npm run test:e2e:chromium      # Chromium only
+npm run test:e2e:firefox       # Firefox only
+npm run test:e2e:webkit        # WebKit only
 npm run test:e2e:mobile        # iPhone 14 Pro Max emulation
+npm run test:e2e:ipad          # iPad Pro emulation
 npm run test:e2e:breakpoints   # All viewport widths (320–1920px)
 npm run test:e2e:update-snapshots  # Refresh visual regression baseline
+npm run test:e2e:report        # Open last Playwright HTML report
 ```
 
 ## Architecture
@@ -45,7 +50,11 @@ App.tsx  ──►  useScenarioEngine.ts  ──►  Components
 
 4. **`src/hooks/useScenarioEngine.ts`** — The simulation heart. A reducer-based engine that ticks every 3 seconds, applying vital progression, evaluating interventions, and emitting `EngineEvent`s. Returns engine state and dispatch functions consumed by `App.tsx`.
 
-5. **`src/App.tsx`** — The orchestrator (≈800 lines). Manages three views (library, live scenario, debrief), session lifecycle, urgency strip computation, and cheat mode (triggered by `c` key or 3-finger downswipe).
+5. **`src/lib/scenarioProgress.ts`** — Scoring utility. Evaluates a completed session's `SessionLogEvent[]` against the scenario definition to produce protocol, outcome, and total scores shown in debrief.
+
+6. **`src/hooks/useHelpSystem.ts`** + **`src/data/helpContent.ts`** — Context-aware help subsystem. `helpContent.ts` is the help topic registry keyed by `AppContext`; `useHelpSystem.ts` manages walkthrough state, per-topic feedback, and the `OnboardingTour`/`WalkthroughEngine` lifecycle.
+
+7. **`src/App.tsx`** — The orchestrator (≈800 lines). Manages three views (library, live scenario, debrief), session lifecycle, urgency strip computation, and cheat mode (triggered by `c` key or 3-finger downswipe).
 
 ### View Structure
 
@@ -59,6 +68,8 @@ Tailwind CSS with a custom medical theme. Key custom tokens in `tailwind.config.
 - `medical-*` — teal-based app chrome colors
 - `vital-hr`, `vital-spo2`, `vital-bp`, `vital-rr`, `vital-temp` — per-vital display colors
 
+Use `clsx` + `tailwind-merge` for conditional class composition (both are installed).
+
 ### Testing
 
 - **Unit tests** (`src/**/*.test.{ts,tsx}`) — Vitest + jsdom + @testing-library/react. Setup in `src/test-setup.ts`.
@@ -70,4 +81,5 @@ Visual regression baselines must be updated with `test:e2e:update-snapshots` whe
 
 - **No backend** — never add server-side code or external API calls
 - **IndexedDB only** — all persistence goes through Dexie (`src/lib/db.ts`)
+- **Exception**: help walkthrough completion and user feedback use `localStorage` (keys `simnurse_completed_walkthroughs`, `simnurse_help_feedback`) — intentional, not a bug
 - **Vite base path** is `/simnurse-app/` — relevant for asset paths and routing

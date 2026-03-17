@@ -1,4 +1,4 @@
-export type AppContext =
+/*  */export type AppContext =
   | 'library'
   | 'preview_modal'
   | 'patient'
@@ -31,7 +31,8 @@ export interface ContextHelpContent {
   walkthroughId: string;
   walkthroughTitle: string;
   steps: WalkthroughStep[];
-  quickTips: HelpTip[];
+  contextTips: HelpTip[];    // context-specific tips shown first in HelpPanel
+  quickTips: HelpTip[];      // existing global tips — shown second, collapsed by default
 }
 
 export const GLOBAL_QUICK_TIPS: HelpTip[] = [
@@ -75,11 +76,11 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
     steps: [
       {
         id: 'library-step-1',
-        targetId: 'welcome-banner',
+        targetId: 'scenario-list',
         title: 'Welcome to SimNurse',
         content:
-          'This app simulates real clinical emergencies. Each scenario has a time-limited patient who needs your interventions.',
-        position: 'bottom',
+          'This app simulates real clinical emergencies. Each card in this list represents a clinical case. Tap any card to preview the patient before starting.',
+        position: 'top',
       },
       {
         id: 'library-step-2',
@@ -114,6 +115,23 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         position: 'top',
       },
     ],
+    contextTips: [
+      {
+        id: 'library-ctx-1',
+        heading: 'Reading Scenario Cards',
+        body: 'Each card shows: difficulty (green = Beginner, amber = Intermediate, red = Advanced), clinical domain, and estimated duration. Tap any card to preview the full patient and initial vitals before committing to a run.',
+      },
+      {
+        id: 'library-ctx-2',
+        heading: 'Using Difficulty Filters',
+        body: 'Start with Beginner scenarios to learn the sequence-confirmation mechanic. Move to Intermediate only after achieving ≥80% Competent on at least 3 Beginner cases.',
+      },
+      {
+        id: 'library-ctx-3',
+        heading: 'Session History Dots',
+        body: 'Under each scenario card, coloured dots show your last 3 runs: 🟢 = success, 🔴 = failed. Hover or long-press a dot to see the run outcome.',
+      },
+    ],
     quickTips: GLOBAL_QUICK_TIPS,
   },
 
@@ -128,7 +146,7 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         title: 'Case Overview',
         content:
           "The header shows the patient's name, age, gender, and the clinical scenario title.",
-        position: 'bottom',
+        position: 'top',
       },
       {
         id: 'preview-step-2',
@@ -153,6 +171,18 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         content:
           'When ready, tap Begin Scenario. The clock starts immediately — your interventions must be fast and in the correct order.',
         position: 'top',
+      },
+    ],
+    contextTips: [
+      {
+        id: 'preview-ctx-1',
+        heading: 'What to Look At Before Starting',
+        body: 'Check the presenting rhythm and initial vitals. Critically abnormal values (e.g. HR = 0, SpO₂ = 72%) mean your first intervention must happen quickly. Note difficulty and duration — Advanced cases may have a hard time cutoff.',
+      },
+      {
+        id: 'preview-ctx-2',
+        heading: 'Pulseless vs Unstable',
+        body: 'Scenarios marked "Pulseless" (VFib, PEA, Asystole) require immediate BLS/ACLS — CPR is almost always the first correct step. "Unstable" scenarios (SVT, Bradycardia) allow more deliberation before intervening.',
       },
     ],
     quickTips: GLOBAL_QUICK_TIPS,
@@ -218,6 +248,23 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         tab: 'patient',
       },
     ],
+    contextTips: [
+      {
+        id: 'patient-ctx-1',
+        heading: 'What the Illustration Shows',
+        body: 'The patient illustration reflects physiological state: cyanotic tinge = low SpO₂, pallor = poor perfusion. SpO₂ and Rhythm badges show live values once vitals are unlocked via the Actions tab.',
+      },
+      {
+        id: 'patient-ctx-2',
+        heading: 'Clinical Narrative Updates',
+        body: "The narrative text updates with each state change. Watch for changes in consciousness (e.g. 'becomes unresponsive'), breathing pattern, and skin colour — these are cues to escalate your response.",
+      },
+      {
+        id: 'patient-ctx-3',
+        heading: 'Ending the Case',
+        body: "Tap the red End button to stop the scenario and view your debrief. The scenario also ends automatically on success or failure. Your session log is preserved either way.",
+      },
+    ],
     quickTips: GLOBAL_QUICK_TIPS,
   },
 
@@ -281,6 +328,23 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         tab: 'actions',
       },
     ],
+    contextTips: [
+      {
+        id: 'actions-ctx-1',
+        heading: 'How to Apply an Action',
+        body: "Tap any action card to open its Procedure Guide — a step-by-step checklist. Read the steps, then tap 'Confirm Action' to apply it. The engine evaluates whether the action is correct for the current sequence position.",
+      },
+      {
+        id: 'actions-ctx-2',
+        heading: 'Why Actions Get Rejected',
+        body: 'Actions are rejected for two reasons: (1) Out-of-sequence — valid but not the next expected step. (2) Clinically inappropriate — no effect at the current patient state. The rejection modal tells you the correct next step.',
+      },
+      {
+        id: 'actions-ctx-3',
+        heading: 'Rejection Badge',
+        body: 'A red dot appears on this tab when an action is rejected. It clears when you visit the Actions tab. Review all rejected actions in the debrief timeline for protocol guidance.',
+      },
+    ],
     quickTips: GLOBAL_QUICK_TIPS,
   },
 
@@ -300,10 +364,10 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
       },
       {
         id: 'status-step-2',
-        targetId: 'vitals-unlock-row',
+        targetId: 'vitals-container',
         title: 'Unlocking Vitals',
         content:
-          "Tap 'Unlock' next to a vital to perform the relevant assessment. HR, SpO₂, BP, and RR each have a specific assessment action required.",
+          "Tap 'Unlock' next to a vital to perform the relevant assessment. Tap 'Quick Inspection' in the header to unlock all vitals at once.",
         position: 'top',
         tab: 'status',
       },
@@ -333,6 +397,23 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
           'The timer pill in the header shows elapsed time. Some scenarios have a hard time cutoff — if it expires, the scenario fails automatically.',
         position: 'bottom',
         tab: 'status',
+      },
+    ],
+    contextTips: [
+      {
+        id: 'status-ctx-1',
+        heading: 'Unlocking Vitals',
+        body: "Vital cards showing '--' require a physical assessment to unlock. Go to the Actions tab and apply 'Physical Assessment' (or tap Quick Inspection in the Status tab header) — all vitals unlock simultaneously.",
+      },
+      {
+        id: 'status-ctx-2',
+        heading: 'Reading the ECG Waveform',
+        body: 'Live ECG reflects current rhythm: chaotic = VFib (defibrillate), flat = Asystole (CPR + epinephrine), slow narrow = Bradycardia (atropine), fast narrow = SVT (vagal/adenosine), organised pulseless = PEA (CPR + treat cause).',
+      },
+      {
+        id: 'status-ctx-3',
+        heading: 'Progress Bar',
+        body: 'The bar tracks proximity to the success condition — not just time elapsed. Completing the correct sequence advances it significantly. A flat bar for the first 20–40 seconds is normal for arrest scenarios.',
       },
     ],
     quickTips: GLOBAL_QUICK_TIPS,
@@ -374,6 +455,23 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         content:
           'Restart to attempt the same case immediately, or return to the Library to choose a new scenario. Your session log is preserved regardless of which you choose.',
         position: 'top',
+      },
+    ],
+    contextTips: [
+      {
+        id: 'debrief-ctx-1',
+        heading: 'Reading Your Timeline',
+        body: 'Each intervention is listed with a timestamp (T+mm:ss). Green = correct sequence. Red = incorrect. Amber = duplicate/cooldown (not penalised in score). Compare timestamps to identify response-time gaps.',
+      },
+      {
+        id: 'debrief-ctx-2',
+        heading: 'Review Protocol Links',
+        body: "Each rejected action has a 'Review Protocol' link that opens the Procedure Guide overlay on top of the debrief — your debrief view is preserved.",
+      },
+      {
+        id: 'debrief-ctx-3',
+        heading: 'When to Move On',
+        body: 'Aim for ≥88% (Proficient) before moving to the next difficulty tier. If consistently scoring Competent (80–88%), focus on response-time gaps — correct actions are there, but timing is slow.',
       },
     ],
     quickTips: GLOBAL_QUICK_TIPS,

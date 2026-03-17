@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 
 interface HelpFeedbackProps {
@@ -8,43 +8,67 @@ interface HelpFeedbackProps {
 
 type FeedbackState = 'idle' | 'rated' | 'submitted';
 
+const AUTO_SUBMIT_MS = 4000;
+
 const HelpFeedback: React.FC<HelpFeedbackProps> = ({ tipId, onSubmitFeedback }) => {
   const [state, setState] = useState<FeedbackState>('idle');
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [comment, setComment] = useState('');
+  const [timerProgress, setTimerProgress] = useState(100);
+
+  const timerStartRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
   const autoSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear timer on unmount
-  useEffect(() => {
-    return () => {
-      if (autoSubmitRef.current !== null) {
-        clearTimeout(autoSubmitRef.current);
-      }
-    };
-  }, []);
-
-  // Set up or reset the 4-second auto-submit timer whenever we enter "rated" state
-  // or the comment changes (typing resets the timer)
-  useEffect(() => {
-    if (state !== 'rated' || rating === null) return;
-
+  const clearTimers = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (autoSubmitRef.current !== null) {
       clearTimeout(autoSubmitRef.current);
+      autoSubmitRef.current = null;
     }
+    timerStartRef.current = null;
+  }, []);
 
-    autoSubmitRef.current = setTimeout(() => {
-      onSubmitFeedback(tipId, rating, undefined);
-      setState('submitted');
-    }, 4000);
+  const startTimer = useCallback(() => {
+    clearTimers();
+    setTimerProgress(100);
+    timerStartRef.current = performance.now();
 
-    return () => {
-      if (autoSubmitRef.current !== null) {
-        clearTimeout(autoSubmitRef.current);
+    // rAF-driven progress bar — transition-none on the bar div is intentional:
+    // CSS transition-width lags behind rAF updates and causes jitter at 60fps.
+    const tick = (now: number) => {
+      if (timerStartRef.current === null) return;
+      const elapsed = now - timerStartRef.current;
+      const remaining = Math.max(0, 100 - (elapsed / AUTO_SUBMIT_MS) * 100);
+      setTimerProgress(remaining);
+      if (elapsed < AUTO_SUBMIT_MS) {
+        rafRef.current = requestAnimationFrame(tick);
       }
     };
-    // comment is intentionally NOT in the dep array here; handleCommentChange resets manually
+    rafRef.current = requestAnimationFrame(tick);
+
+    autoSubmitRef.current = setTimeout(() => {
+      if (rating !== null) {
+        onSubmitFeedback(tipId, rating, undefined);
+      }
+      setState('submitted');
+    }, AUTO_SUBMIT_MS);
+  }, [clearTimers, rating, tipId, onSubmitFeedback]);
+
+  // Start timer when entering rated state
+  useEffect(() => {
+    if (state === 'rated' && rating !== null) {
+      startTimer();
+    }
+    return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, rating, tipId, onSubmitFeedback]);
+  }, [state, rating]);
+
+  // Clean up on unmount
+  useEffect(() => () => clearTimers(), [clearTimers]);
 
   const handleRate = (chosen: 'up' | 'down') => {
     setRating(chosen);
@@ -54,28 +78,21 @@ const HelpFeedback: React.FC<HelpFeedbackProps> = ({ tipId, onSubmitFeedback }) 
 
   const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setComment(e.target.value);
-
-    // Reset the auto-submit timer on each keystroke
-    if (autoSubmitRef.current !== null) {
-      clearTimeout(autoSubmitRef.current);
-    }
-    if (rating !== null) {
-      autoSubmitRef.current = setTimeout(() => {
-        onSubmitFeedback(tipId, rating, undefined);
-        setState('submitted');
-      }, 4000);
-    }
+    if (state === 'rated') startTimer();
   };
 
   const handleSubmit = () => {
-    if (autoSubmitRef.current !== null) {
-      clearTimeout(autoSubmitRef.current);
-      autoSubmitRef.current = null;
-    }
+    clearTimers();
     if (rating !== null) {
       onSubmitFeedback(tipId, rating, comment.trim() || undefined);
     }
     setState('submitted');
+  };
+
+  const handleCancel = () => {
+    clearTimers();
+    setTimerProgress(100);
+    // Stay in rated state with timer paused — user can still manually submit
   };
 
   if (state === 'submitted') {
@@ -117,7 +134,28 @@ const HelpFeedback: React.FC<HelpFeedbackProps> = ({ tipId, onSubmitFeedback }) 
         >
           <ThumbsDown size={14} />
         </button>
+
+        {/* Cancel button — only shown in rated state */}
+        {state === 'rated' && (
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="ml-auto text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
       </div>
+
+      {/* Shrinking progress bar — rAF driven, transition-none intentional */}
+      {state === 'rated' && (
+        <div className="mt-1.5 h-0.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-amber-400 rounded-full transition-none"
+            style={{ width: `${timerProgress}%` }}
+          />
+        </div>
+      )}
 
       {/* Rated state: textarea + submit */}
       {state === 'rated' && (
@@ -125,7 +163,7 @@ const HelpFeedback: React.FC<HelpFeedbackProps> = ({ tipId, onSubmitFeedback }) 
           <textarea
             value={comment}
             onChange={handleCommentChange}
-            placeholder="Tell us more (optional)"
+            placeholder="Tell us more (optional) — submitting automatically…"
             maxLength={280}
             rows={3}
             className="w-full text-xs text-slate-600 placeholder-slate-400 border border-slate-200 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-medical-400"
@@ -135,7 +173,7 @@ const HelpFeedback: React.FC<HelpFeedbackProps> = ({ tipId, onSubmitFeedback }) 
             onClick={handleSubmit}
             className="mt-1 bg-medical-500 text-white text-xs px-3 py-1 rounded-lg hover:bg-medical-600 transition-colors"
           >
-            Submit
+            Submit now
           </button>
         </div>
       )}

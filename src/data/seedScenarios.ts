@@ -32,13 +32,18 @@ export const seedScenarios: Scenario[] = [
         message: 'Untreated ventricular fibrillation deteriorated to asystole.',
       },
     ],
-    expected_sequence: ['defibrillate', 'cpr', 'epinephrine_1mg', 'amiodarone_300mg'],
+    expected_sequence: ['defibrillate', 'cpr', 'establish_iv', 'epinephrine_1mg', 'amiodarone_300mg'],
     interventions: {
       cpr: {
         duration_sec: 120,
         priority: 10,
         state_overrides: { bp: '60/20', spo2: 85 },
         rationale: 'High-quality chest compressions at 100–120/min and 2–2.4 inch depth maintain coronary and cerebral perfusion pressure during cardiac arrest, sustaining myocardial viability until defibrillation or ROSC.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per AHA 2020 ACLS guidelines.',
       },
       defibrillate: {
         duration_sec: 10,
@@ -68,7 +73,10 @@ export const seedScenarios: Scenario[] = [
       },
     },
     success_conditions: arrestSuccess(30),
-    failure_conditions: [{ elapsedSecGte: 1200 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 600 },
+      { elapsedSecGte: 1200 },
+    ],
   },
 
   // Scenario 2 — adult_asystole_unwitnessed
@@ -89,13 +97,18 @@ export const seedScenarios: Scenario[] = [
       glucose: 90,
     },
     baseline_progressions: [],
-    expected_sequence: ['cpr', 'epinephrine_1mg'],
+    expected_sequence: ['cpr', 'establish_iv', 'epinephrine_1mg'],
     interventions: {
       cpr: {
         duration_sec: 120,
         priority: 10,
         state_overrides: { bp: '50/15' },
         rationale: 'High-quality chest compressions at 100–120/min maintain coronary and cerebral perfusion pressure during arrest, and are the cornerstone of resuscitation while reversible causes are sought per AHA 2020 guidelines.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per AHA 2020 ACLS guidelines.',
       },
       epinephrine_1mg: {
         duration_sec: 240,
@@ -106,7 +119,10 @@ export const seedScenarios: Scenario[] = [
       },
     },
     success_conditions: arrestSuccess(60),
-    failure_conditions: [{ elapsedSecGte: 900 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 600 },
+      { elapsedSecGte: 900 },
+    ],
   },
 
   // Scenario 3 — adult_pulseless_vtach
@@ -127,13 +143,18 @@ export const seedScenarios: Scenario[] = [
       glucose: 120,
     },
     baseline_progressions: [],
-    expected_sequence: ['defibrillate', 'cpr', 'epinephrine_1mg', 'amiodarone_300mg'],
+    expected_sequence: ['defibrillate', 'cpr', 'establish_iv', 'epinephrine_1mg', 'amiodarone_300mg'],
     interventions: {
       cpr: {
         duration_sec: 120,
         priority: 10,
         state_overrides: { bp: '70/30' },
         rationale: 'High-quality chest compressions at 100–120/min maintain coronary and cerebral perfusion pressure during arrest, sustaining myocardial viability until defibrillation is successful per AHA 2020 guidelines.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per AHA 2020 ACLS guidelines.',
       },
       defibrillate: {
         duration_sec: 10,
@@ -158,7 +179,10 @@ export const seedScenarios: Scenario[] = [
       },
     },
     success_conditions: arrestSuccess(30),
-    failure_conditions: [{ elapsedSecGte: 1200 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 600 },
+      { elapsedSecGte: 1200 },
+    ],
   },
 
   // Scenario 4 — adult_pea_hypovolemia
@@ -231,13 +255,18 @@ export const seedScenarios: Scenario[] = [
       glucose: 110,
     },
     baseline_progressions: [],
-    expected_sequence: ['cpr', 'rescue_breathing', 'intubation', 'epinephrine_1mg'],
+    expected_sequence: ['cpr', 'rescue_breathing', 'intubation', 'establish_iv', 'epinephrine_1mg'],
     interventions: {
       cpr: {
         duration_sec: 120,
         priority: 10,
         state_overrides: { bp: '60/20' },
         rationale: 'CPR maintains marginal perfusion during hypoxic PEA arrest; compressions combined with oxygenation are the primary interventions as hypoxia is the underlying cause per AHA 2020 ACLS guidelines.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per AHA 2020 ACLS guidelines.',
       },
       epinephrine_1mg: {
         duration_sec: 240,
@@ -515,7 +544,7 @@ export const seedScenarios: Scenario[] = [
         message: 'Five minutes have elapsed without ROSC. Perimortem Cesarean Delivery (PMCD) should be initiated immediately to improve maternal resuscitation outcome (ACOG/AHA).',
       },
     ],
-    expected_sequence: ['left_uterine_displacement', 'cpr', 'defibrillate', 'epinephrine_1mg', 'perimortem_csection'],
+    expected_sequence: ['left_uterine_displacement', 'cpr', 'defibrillate', 'establish_iv', 'epinephrine_1mg', 'perimortem_csection'],
     interventions: {
       left_uterine_displacement: {
         duration_sec: 30,
@@ -537,6 +566,11 @@ export const seedScenarios: Scenario[] = [
         success_state: { rhythm: 'Sinus', hr: 110, bp: '100/60', spo2: 94, rr: 14, pulsePresent: true },
         rationale: 'Defibrillation is not contraindicated in pregnancy; it is the only definitive treatment for VFib and must not be delayed — fetal risk from the shock is negligible compared to the risk of untreated maternal VFib.',
       },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per AHA 2020 ACLS guidelines.',
+      },
       epinephrine_1mg: {
         duration_sec: 240,
         priority: 5,
@@ -552,7 +586,10 @@ export const seedScenarios: Scenario[] = [
       },
     },
     success_conditions: arrestSuccess(60),
-    failure_conditions: [{ elapsedSecGte: 600 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 600 },
+      { elapsedSecGte: 600 },
+    ],
   },
 
   // Scenario 11 — anaphylactic_shock
@@ -852,13 +889,18 @@ export const seedScenarios: Scenario[] = [
       glucose: 100,
     },
     baseline_progressions: [],
-    expected_sequence: ['cpr', 'defibrillate_pediatric', 'epinephrine_peds_01mgkg', 'amiodarone_peds_5mgkg'],
+    expected_sequence: ['cpr', 'defibrillate_pediatric', 'establish_iv', 'epinephrine_peds_01mgkg', 'amiodarone_peds_5mgkg'],
     interventions: {
       cpr: {
         duration_sec: 120,
         priority: 10,
         state_overrides: { bp: '60/20' },
         rationale: 'High-quality chest compressions (~2 inches at 100–120/min) maintain coronary and cerebral perfusion during paediatric cardiac arrest, and are performed before defibrillation to prime the myocardium per PALS 2020 guidelines.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in paediatric cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per PALS 2020 guidelines.',
       },
       defibrillate_pediatric: {
         duration_sec: 10,
@@ -883,7 +925,10 @@ export const seedScenarios: Scenario[] = [
       },
     },
     success_conditions: arrestSuccess(30),
-    failure_conditions: [{ elapsedSecGte: 600 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 600 },
+      { elapsedSecGte: 600 },
+    ],
   },
 
   // BLS Scenario 1 — bls_adult_cardiac_arrest_bystander
@@ -1249,7 +1294,10 @@ export const seedScenarios: Scenario[] = [
       { vital: 'pulsePresent', equals: true, durationSec: 30 },
       { vital: 'spo2', min: 94, durationSec: 30 },
     ],
-    failure_conditions: [{ elapsedSecGte: 600 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 300 },
+      { elapsedSecGte: 600 },
+    ],
   },
 
   // BLS Scenario 5 — bls_child_two_rescuer_cpr
@@ -1412,7 +1460,10 @@ export const seedScenarios: Scenario[] = [
       { vital: 'pulsePresent', equals: true, durationSec: 20 },
       { vital: 'spo2', min: 94, durationSec: 20 },
     ],
-    failure_conditions: [{ elapsedSecGte: 480 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 300 },
+      { elapsedSecGte: 480 },
+    ],
   },
 
   // BLS Scenario 7 — bls_infant_two_rescuer_cpr
@@ -1495,7 +1546,10 @@ export const seedScenarios: Scenario[] = [
       { vital: 'pulsePresent', equals: true, durationSec: 20 },
       { vital: 'spo2', min: 94, durationSec: 20 },
     ],
-    failure_conditions: [{ elapsedSecGte: 480 }],
+    failure_conditions: [
+      { vital: 'pulsePresent', equals: false, durationSec: 300 },
+      { elapsedSecGte: 480 },
+    ],
   },
 
   // BLS Scenario 8 — bls_adult_choking_responsive

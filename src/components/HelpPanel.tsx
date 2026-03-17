@@ -22,7 +22,7 @@ const KEYBOARD_SHORTCUTS: { key: string; description: string }[] = [
   { key: '→', description: 'Next step' },
   { key: '←', description: 'Previous step' },
   { key: 'Esc', description: 'Dismiss tour' },
-  { key: '? / H', description: 'Open this help panel' },
+  { key: '? / H', description: 'Open / close help panel' },
 ];
 
 const handleResetAll = (resetAll: () => Promise<void>) => {
@@ -35,8 +35,62 @@ const handleResetAll = (resetAll: () => Promise<void>) => {
   }
 };
 
+const GlobalTipsAccordion: React.FC<{
+  tips: import('../data/helpContent').HelpTip[];
+  expandedTipId: string | null;
+  onToggle: (id: string) => void;
+  submitFeedback: (topicId: string, rating: 'up' | 'down', comment?: string) => void;
+  defaultCollapsed: boolean;
+}> = ({ tips, expandedTipId, onToggle, submitFeedback, defaultCollapsed }) => {
+  const [groupOpen, setGroupOpen] = useState(!defaultCollapsed);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setGroupOpen(g => !g)}
+        className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 hover:text-slate-600 transition-colors"
+      >
+        {groupOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        General Tips
+      </button>
+      {groupOpen && (
+        <div className="rounded-2xl border border-slate-100 overflow-hidden">
+          {tips.map((tip, index) => {
+            const isExpanded = expandedTipId === tip.id;
+            const isLast = index === tips.length - 1;
+            return (
+              <div key={tip.id} className={isLast ? '' : 'border-b border-slate-100'}>
+                <button
+                  type="button"
+                  onClick={() => onToggle(tip.id)}
+                  className="w-full flex justify-between items-center px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                >
+                  <span className="text-sm font-semibold text-slate-700 leading-snug pr-2">{tip.heading}</span>
+                  {isExpanded ? (
+                    <ChevronUp size={16} className="text-slate-400 shrink-0" />
+                  ) : (
+                    <ChevronDown size={16} className="text-slate-400 shrink-0" />
+                  )}
+                </button>
+                <div className={`overflow-hidden transition-all duration-200 ${isExpanded ? 'max-h-96' : 'max-h-0'}`}>
+                  <div className="px-4 pb-4">
+                    <p className="text-xs text-slate-500 leading-relaxed mb-2 whitespace-pre-line">{tip.body}</p>
+                    <HelpFeedback tipId={tip.id} onSubmitFeedback={submitFeedback} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const HelpPanel: React.FC<HelpPanelProps> = ({ helpSystem }) => {
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState('');
   const [isDesktop, setIsDesktop] = useState(false);
 
   // Detect non-touch (desktop) device once on mount
@@ -49,12 +103,30 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ helpSystem }) => {
   useEffect(() => {
     if (helpSystem.panelOpen) {
       setExpandedTipId(null);
+      setFilterText('');
     }
   }, [helpSystem.panelOpen, helpSystem.context]);
 
   if (!helpSystem.panelOpen) return null;
 
   const { content, wasWalkthroughCompleted, startWalkthrough, resumeWalkthrough, closePanel, submitFeedback } = helpSystem;
+
+  const totalTipCount = content.contextTips.length + content.quickTips.length;
+  const normalised = filterText.toLowerCase();
+
+  const filteredContextTips = normalised
+    ? content.contextTips.filter(
+        t => t.heading.toLowerCase().includes(normalised) || t.body.toLowerCase().includes(normalised)
+      )
+    : content.contextTips;
+
+  const filteredGlobalTips = normalised
+    ? content.quickTips.filter(
+        t => t.heading.toLowerCase().includes(normalised) || t.body.toLowerCase().includes(normalised)
+      )
+    : content.quickTips;
+
+  const hasFilterResults = filteredContextTips.length + filteredGlobalTips.length > 0;
   const walkthroughId = helpSystem.content.walkthroughId;
   const isCompleted = wasWalkthroughCompleted(walkthroughId);
 
@@ -143,54 +215,75 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ helpSystem }) => {
               </button>
             </div>
 
-            {/* ── Section 3: Quick Tips accordion ── */}
+            {/* ── Section 3: Context tips + General Tips + optional filter ── */}
             <div className="mb-4">
               <div className="flex items-center gap-2 mb-3">
                 <Lightbulb size={14} className="text-slate-500 shrink-0" />
-                <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">Quick Tips</h3>
+                <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                  {content.contextTips.length > 0 ? 'This Screen' : 'Quick Tips'}
+                </h3>
               </div>
 
-              <div className="rounded-2xl border border-slate-100 overflow-hidden">
-                {content.quickTips.map((tip, index) => {
-                  const isExpanded = expandedTipId === tip.id;
-                  const isLast = index === content.quickTips.length - 1;
+              {/* Filter input — shown when total tips >= 8 */}
+              {totalTipCount >= 8 && (
+                <div className="mb-3">
+                  <input
+                    type="search"
+                    value={filterText}
+                    onChange={e => setFilterText(e.target.value)}
+                    placeholder="Filter tips…"
+                    className="w-full text-xs text-slate-600 placeholder-slate-400 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-medical-400 bg-slate-50"
+                  />
+                </div>
+              )}
 
-                  return (
-                    <div key={tip.id} className={isLast ? '' : 'border-b border-slate-100'}>
-                      {/* Collapsed / header row */}
-                      <button
-                        type="button"
-                        onClick={() => handleTipToggle(tip.id)}
-                        className="w-full flex justify-between items-center px-4 py-3 text-left hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-sm font-semibold text-slate-700 leading-snug pr-2">
-                          {tip.heading}
-                        </span>
-                        {isExpanded ? (
-                          <ChevronUp size={16} className="text-slate-400 shrink-0" />
-                        ) : (
-                          <ChevronDown size={16} className="text-slate-400 shrink-0" />
-                        )}
-                      </button>
-
-                      {/* Expanded body */}
-                      <div
-                        className={`overflow-hidden transition-all duration-200 ${
-                          isExpanded ? 'max-h-96' : 'max-h-0'
-                        }`}
-                      >
-                        <div className="px-4 pb-4">
-                          <p className="text-xs text-slate-500 leading-relaxed mb-2 whitespace-pre-line">{tip.body}</p>
-                          <HelpFeedback
-                            tipId={tip.id}
-                            onSubmitFeedback={submitFeedback}
-                          />
+              {/* Context-specific tips (primary) */}
+              {filteredContextTips.length > 0 && (
+                <div className="rounded-2xl border border-slate-100 overflow-hidden mb-3">
+                  {filteredContextTips.map((tip, index) => {
+                    const isExpanded = expandedTipId === tip.id;
+                    const isLast = index === filteredContextTips.length - 1;
+                    return (
+                      <div key={tip.id} className={isLast ? '' : 'border-b border-slate-100'}>
+                        <button
+                          type="button"
+                          onClick={() => handleTipToggle(tip.id)}
+                          className="w-full flex justify-between items-center px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="text-sm font-semibold text-slate-700 leading-snug pr-2">
+                            {tip.heading}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUp size={16} className="text-slate-400 shrink-0" />
+                          ) : (
+                            <ChevronDown size={16} className="text-slate-400 shrink-0" />
+                          )}
+                        </button>
+                        <div className={`overflow-hidden transition-all duration-200 ${isExpanded ? 'max-h-96' : 'max-h-0'}`}>
+                          <div className="px-4 pb-4">
+                            <p className="text-xs text-slate-500 leading-relaxed mb-2 whitespace-pre-line">{tip.body}</p>
+                            <HelpFeedback tipId={tip.id} onSubmitFeedback={submitFeedback} />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Global tips (secondary — collapsible group) */}
+              <GlobalTipsAccordion
+                tips={filteredGlobalTips}
+                expandedTipId={expandedTipId}
+                onToggle={handleTipToggle}
+                submitFeedback={submitFeedback}
+                defaultCollapsed={content.contextTips.length > 0}
+              />
+
+              {/* Empty state when filter matches nothing */}
+              {!hasFilterResults && filterText && (
+                <p className="text-xs text-slate-400 text-center py-4">No tips match &ldquo;{filterText}&rdquo;</p>
+              )}
             </div>
 
             {/* ── Section 4: Keyboard shortcuts (desktop only) ── */}

@@ -50,6 +50,40 @@ async function loadAppWithTourCompleted(page: import('@playwright/test').Page) {
   await page.waitForSelector('[id^="scenario-btn-"]', { state: 'visible', timeout: 15_000 });
 }
 
+/**
+ * Navigate to the debrief screen by starting any scenario and immediately ending it manually.
+ * simnurse_e2e_freeze_engine is already handled in useScenarioEngine.ts — no engine change needed.
+ */
+async function reachDebrief(page: import('@playwright/test').Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'simnurse_completed_walkthroughs',
+      JSON.stringify(['library-tour', 'preview-tour', 'patient-tour', 'actions-tour', 'status-tour'])
+    );
+    window.localStorage.setItem('simnurse_e2e_freeze_engine', 'true');
+  });
+  await page.goto('/');
+  await page.waitForSelector('[id^="scenario-btn-"]', { state: 'visible', timeout: 15_000 });
+
+  // Open preview modal
+  await page.locator('[id^="scenario-btn-"]').first().click();
+  await page.waitForSelector('#begin-scenario-btn', { state: 'visible', timeout: 5_000 });
+  await page.click('#begin-scenario-btn');
+
+  // End scenario immediately
+  await page.waitForSelector('#finish-case-btn', { state: 'visible', timeout: 5_000 });
+  await page.click('#finish-case-btn');
+
+  // Confirm end — prefer stable id, fall back to button text
+  const confirmBtn = page
+    .locator('#end-scenario-confirm-btn')
+    .or(page.getByRole('button', { name: /end.*debrief|end & debrief/i }).first());
+  await confirmBtn.click();
+
+  // Wait for EvaluationSummary
+  await page.waitForSelector('#score-gauge', { state: 'visible', timeout: 10_000 });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,11 +190,19 @@ test('feedback widget appears in HelpPanel tip', async ({ page }) => {
   ).toBeVisible({ timeout: 3_000 });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Skipped — requires full scenario run to reach debrief
-// ─────────────────────────────────────────────────────────────────────────────
+test('debrief ? button opens HelpPanel', async ({ page }) => {
+  await reachDebrief(page);
 
-test.skip('debrief ? button opens HelpPanel', async ({ page }) => {
-  // Requires full scenario run; covered by manual testing.
-  void page;
+  // The EvaluationSummary renders a ? help button via onHelpClick prop
+  const helpBtn = page
+    .locator('#help-btn')
+    .or(page.getByRole('button', { name: /help/i }).first());
+
+  await expect(helpBtn).toBeVisible({ timeout: 5_000 });
+  await helpBtn.click();
+
+  // HelpPanel should show debrief context label
+  await expect(
+    page.locator('text=Debrief Help').or(page.locator('text=Debrief'))
+  ).toBeVisible({ timeout: 5_000 });
 });

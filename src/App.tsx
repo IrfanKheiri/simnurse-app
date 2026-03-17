@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ActiveIntervention, AdjustableVital, Condition, CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent } from './types/scenario';
+import type { ActiveIntervention, AdjustableVital, Condition, CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent, StateChangeEvent } from './types/scenario';
 import CheatOverlay from './components/CheatOverlay';
 import ActionsScreen from './components/ActionsScreen';
 import BottomNav from './components/BottomNav';
@@ -221,7 +221,10 @@ function computeUrgencyItems(
 
     // Elapsed-time cutoff condition
     if (condition.elapsedSecGte !== undefined && !condition.vital) {
-      const warnFrom = condition.elapsedSecGte - 60;
+      // Warn from 25% remaining (minimum 120s before cutoff) so learners
+      // have meaningful advance notice — not just the last 60 seconds.
+      const warnWindow = Math.max(120, Math.round(condition.elapsedSecGte * 0.25));
+      const warnFrom = condition.elapsedSecGte - warnWindow;
       if (elapsedSec >= warnFrom) {
         const remainingSec = condition.elapsedSecGte - elapsedSec;
         if (remainingSec > 0) {
@@ -500,6 +503,15 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         return;
       }
 
+      if (event.type === 'state_change') {
+        const stateChangeEvent = event as StateChangeEvent;
+        const isCritical =
+          Object.prototype.hasOwnProperty.call(stateChangeEvent.changes, 'pulsePresent') ||
+          Object.prototype.hasOwnProperty.call(stateChangeEvent.changes, 'rhythm');
+        showToast(stateChangeEvent.message, isCritical ? 'warning' : 'info');
+        return;
+      }
+
       if (event.type === 'completion') {
         const completionEvent = event as CompletionEvent;
         setScenarioOutcome(completionEvent.outcome);
@@ -547,10 +559,20 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   const score = useMemo(() => {
     const correctActions = evalActions.filter((a) => a.isCorrect).length;
     const sequenceErrors = evalActions.filter((a) => !a.isCorrect && !a.isDuplicate).length;
-    const totalScoredActions = correctActions + sequenceErrors;
+
+    // For failed outcomes: unexecuted required protocol steps count as omission errors.
+    // Without this guard, applying 1 correct action before a failure on a 5-step protocol = 100%.
+    // Manual endings do NOT apply this penalty — the learner chose to end early.
+    const expectedTotal = activeScenario?.expected_sequence?.length ?? 0;
+    const missedSteps =
+      scenarioOutcome === 'failed'
+        ? Math.max(0, expectedTotal - correctActions)
+        : 0;
+
+    const totalScoredActions = correctActions + sequenceErrors + missedSteps;
     if (totalScoredActions === 0) return 0;
     return Math.round((correctActions / totalScoredActions) * 100);
-  }, [evalActions]);
+  }, [evalActions, scenarioOutcome, activeScenario]);
 
   const scenarioProgressPct = useMemo(() => (
     calculateScenarioProgress(activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts).totalScore
@@ -689,7 +711,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           onPreviewStateChange={setPreviewOpen}
         />
         <HelpPanel helpSystem={helpSystem} />
-        <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} />
+        <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} activeTab={activeTab} />
       </div>
     );
   }
@@ -720,7 +742,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           onReviewProcedure={(_actionId) => {}}
         />
         <HelpPanel helpSystem={helpSystem} />
-        <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} />
+        <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} activeTab={activeTab} />
       </div>
     );
   }
@@ -742,6 +764,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
       {correctActionMessage && (
         <CorrectActionWidget
           message={correctActionMessage}
+          variant={correctActionMessage.includes('no immediate physiological response') ? 'ineffective' : 'success'}
           onDismiss={() => setCorrectActionMessage(null)}
         />
       )}
@@ -789,7 +812,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         rejectionCount={rejectionCount}
       />
       <HelpPanel helpSystem={helpSystem} />
-      <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} />
+      <WalkthroughEngine helpSystem={helpSystem} setActiveTab={setActiveTab} activeTab={activeTab} />
       {cheatModeEnabled && cheatVisible && (
         <CheatOverlay
           scenario={activeScenario}

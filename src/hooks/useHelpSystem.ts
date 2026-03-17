@@ -46,6 +46,7 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
   const panelOpenRef = useRef(panelOpen);
   const walkthroughActiveRef = useRef(walkthroughActive);
   const walkthroughIdRef = useRef(walkthroughId);
+  const skippedThisSessionRef = useRef<Set<string>>(new Set());
 
   // content is derived synchronously — no state needed
   const content = HELP_CONTENT[context];
@@ -138,8 +139,13 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
 
   const skipWalkthrough = useCallback(() => {
     // "Not now" — does NOT write to localStorage (not the same as complete)
+    // Records to in-memory session ref so auto-start does not re-fire for this tour
+    // in the same session. On page refresh the skip resets (intentional).
     setWalkthroughActive(false);
     setWalkthroughStepIndex(0);
+    if (walkthroughIdRef.current !== null) {
+      skippedThisSessionRef.current.add(walkthroughIdRef.current);
+    }
   }, []);
 
   const resetAll = useCallback(async () => {
@@ -233,10 +239,34 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
     }
   }, [context, _pauseWalkthrough]);
 
+  // Global keyboard shortcut: '?' or 'H'/'h' toggles the help panel open/closed
+  // Guards: walkthrough active (has its own key handlers); focus in a text input
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in a text field
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const key = e.key;
+      if ((key === '?' || key.toLowerCase() === 'h') && !walkthroughActiveRef.current) {
+        e.preventDefault();
+        if (panelOpenRef.current) {
+          closePanel();
+        } else {
+          openPanel();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [openPanel, closePanel]);
+
   // Auto-start debounce: start walkthrough 2s after context change if not completed
   useEffect(() => {
     const id = HELP_CONTENT[context].walkthroughId;
     if (wasWalkthroughCompleted(id)) return;
+    if (skippedThisSessionRef.current.has(id)) return;  // suppressed for this session
 
     const timer = setTimeout(() => {
       // Guard: only start if panel is not open at fire time (read ref, not stale closure)

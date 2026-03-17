@@ -55,7 +55,7 @@ const ScenarioPreviewModal: React.FC<ScenarioPreviewModalProps> = ({ scenario, o
     >
       <div className="w-full max-w-[440px] rounded-t-[2.5rem] bg-white shadow-2xl overflow-hidden">
         {/* header band */}
-        <div className="relative bg-gradient-to-br from-slate-800 to-slate-900 px-6 pt-6 pb-5 text-white">
+        <div id="preview-modal-header" className="relative bg-gradient-to-br from-slate-800 to-slate-900 px-6 pt-6 pb-5 text-white">
           <button
             type="button"
             aria-label="Close preview"
@@ -94,7 +94,7 @@ const ScenarioPreviewModal: React.FC<ScenarioPreviewModalProps> = ({ scenario, o
         <div className="px-6 pt-5 pb-6">
           {/* meta badges */}
           {meta && (
-            <div className="flex flex-wrap items-center gap-2 mb-5">
+            <div id="preview-meta-badges" className="flex flex-wrap items-center gap-2 mb-5">
               <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                 meta.difficulty === 'Advanced'
                   ? 'bg-red-50 text-red-600'
@@ -125,7 +125,7 @@ const ScenarioPreviewModal: React.FC<ScenarioPreviewModalProps> = ({ scenario, o
           {/* initial vitals grid */}
           <div className="mb-6">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Initial Vitals</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div id="preview-vitals-grid" className="grid grid-cols-2 gap-2">
               {vitalItems.map(({ label, value, Icon: VIcon }) => (
                 <div key={label} className="flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5">
                   <VIcon size={16} className="shrink-0 text-slate-400" />

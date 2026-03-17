@@ -5,9 +5,11 @@ import { CheckCircle } from 'lucide-react';
 interface CorrectActionWidgetProps {
     message: string;
     onDismiss: () => void;
+    variant?: 'success' | 'ineffective';
 }
 
-const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDismiss }) => {
+const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDismiss, variant }) => {
+    const isIneffective = variant === 'ineffective';
     useEffect(() => {
         const timer = setTimeout(() => {
             document.getElementById('correct-action-continue-btn')?.focus();
@@ -41,15 +43,19 @@ const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDi
                     aria-labelledby="correct-action-title"
                     className="correct-pulse relative bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden pointer-events-auto border border-green-100"
                 >
-                    <div className="bg-gradient-to-br from-green-500 to-green-600 p-8 flex flex-col items-center justify-center text-white text-center relative overflow-hidden">
+                    <div className={`${isIneffective ? 'bg-gradient-to-br from-amber-500 to-amber-600' : 'bg-gradient-to-br from-green-500 to-green-600'} p-8 flex flex-col items-center justify-center text-white text-center relative overflow-hidden`}>
                         <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
                             <CheckCircle size={160} strokeWidth={1} />
                         </div>
                         <div className="bg-white/20 p-4 rounded-full mb-4 shadow-inner">
                             <CheckCircle size={40} strokeWidth={2} />
                         </div>
-                        <h2 id="correct-action-title" className="text-xl font-black tracking-tight mb-1">Correct Action</h2>
-                        <p className="text-green-100 text-xs font-bold uppercase tracking-wider">Protocol Step Confirmed</p>
+                        <h2 id="correct-action-title" className="text-xl font-black tracking-tight mb-1">
+                            {isIneffective ? 'Correct Protocol' : 'Correct Action'}
+                        </h2>
+                        <p className={`${isIneffective ? 'text-amber-100' : 'text-green-100'} text-xs font-bold uppercase tracking-wider`}>
+                            {isIneffective ? 'No Immediate Response' : 'Protocol Step Confirmed'}
+                        </p>
                     </div>
 
                     <div className="p-8 text-center bg-white relative">
@@ -61,7 +67,7 @@ const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDi
                             id="correct-action-continue-btn"
                             type="button"
                             onClick={onDismiss}
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-2xl transition-all active:scale-95 uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+                            className={`w-full ${isIneffective ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'} text-white font-bold py-4 rounded-2xl transition-all active:scale-95 uppercase tracking-widest text-xs flex items-center justify-center gap-2`}
                         >
                             Continue
                         </button>

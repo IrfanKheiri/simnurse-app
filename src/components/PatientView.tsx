@@ -137,6 +137,7 @@ const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }
                         Continue
                     </button>
                     <button
+                        id="end-scenario-confirm-btn"
                         type="button"
                         onClick={onConfirm}
                         className="flex-[2] py-3 rounded-2xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-lg shadow-red-100"

@@ -15,10 +15,12 @@ function clamp(value: number, min: number, max: number) {
 interface WalkthroughEngineProps {
     helpSystem: HelpSystemState & HelpSystemActions;
     setActiveTab: (tab: string) => void;
+    activeTab: string;
 }
 
-const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setActiveTab }) => {
+const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setActiveTab, activeTab }) => {
     const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+    const [skippedCount, setSkippedCount] = useState(0);
 
     const {
         walkthroughActive,
@@ -42,7 +44,7 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
         }
 
         // If step requires a tab switch, do it and wait for DOM to settle
-        if (currentStep.tab) {
+        if (currentStep.tab && currentStep.tab !== activeTab) {
             setActiveTab(currentStep.tab);
         }
 
@@ -53,6 +55,7 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
                 return;
             }
             setTargetRect(element.getBoundingClientRect());
+            setSkippedCount(0);
         };
 
         // Delay to let tab switch + DOM settle (matching OnboardingTour pattern)
@@ -74,7 +77,7 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
             window.removeEventListener('resize', syncTargetRect);
             window.removeEventListener('scroll', syncTargetRect, true);
         };
-    }, [walkthroughActive, walkthroughStepIndex, currentStep, setActiveTab]);
+    }, [walkthroughActive, walkthroughStepIndex, currentStep, setActiveTab, activeTab]);
 
     // Missing target auto-skip (Issue 4 fix)
     useEffect(() => {
@@ -86,6 +89,7 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
             if (!walkthroughActive || !currentStep) return;
             const el = document.getElementById(currentStep.targetId);
                 if (el === null) {
+                    setSkippedCount(prev => prev + 1);
                     const isLastStep = helpSystem.walkthroughStepIndex === helpSystem.content.steps.length - 1;
                     if (isLastStep) {
                         // Use skipWalkthrough instead of completeWalkthrough so that a fully-invisible
@@ -301,8 +305,18 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
                     {currentStep.content}
                 </p>
 
-                {/* Auto-start behavioral callout — shown on step 0 only */}
-                {walkthroughStepIndex === 0 && (
+                {/* Skip notice — shown when steps were silently auto-skipped due to missing DOM targets */}
+                {skippedCount > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                        <p className="text-[10px] text-slate-500 leading-snug">
+                            ↩ Skipped {skippedCount} step{skippedCount > 1 ? 's' : ''} — content not visible right now.
+                        </p>
+                    </div>
+                )}
+
+                {/* Auto-start behavioral callout — shown on step 0 only, and only if tour hasn't been completed before */}
+                {walkthroughStepIndex === 0 &&
+                  !helpSystem.wasWalkthroughCompleted(helpSystem.walkthroughId ?? '') && (
                     <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
                         <p className="text-[10px] text-amber-700 leading-snug">
                             ⚠️ Auto-started: this tour fires once per screen. Dismiss anytime.
@@ -327,12 +341,13 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
                             type="button"
                             onClick={prevStep}
                             disabled={walkthroughStepIndex === 0}
+                            aria-disabled={walkthroughStepIndex === 0}
                             title="Previous step"
                             className={cn(
                                 'flex items-center justify-center w-8 h-8 rounded-xl border transition-all',
                                 walkthroughStepIndex === 0
-                                    ? 'border-slate-100 text-slate-200 cursor-not-allowed'
-                                    : 'border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700 active:scale-95',
+                                    ? 'border-slate-200 text-slate-400 cursor-not-allowed'
+                                    : 'border-slate-200 text-slate-600 hover:border-slate-400 hover:text-slate-800 active:scale-95',
                             )}
                         >
                             <ChevronLeft size={14} />
