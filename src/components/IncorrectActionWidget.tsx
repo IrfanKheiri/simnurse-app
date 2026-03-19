@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertOctagon } from 'lucide-react';
 
@@ -8,15 +8,31 @@ interface IncorrectActionWidgetProps {
 }
 
 const IncorrectActionWidget: React.FC<IncorrectActionWidgetProps> = ({ message, onClose }) => {
+    const modalRef = useRef<HTMLDivElement>(null);
+
     // FIX (P1-F): Focus the Acknowledge button when the modal opens
     useEffect(() => {
         if (message) {
-            const timer = setTimeout(() => {
-                document.getElementById('incorrect-action-acknowledge-btn')?.focus();
-            }, 0);
-            return () => clearTimeout(timer);
+            const btn = modalRef.current?.querySelector<HTMLButtonElement>('button');
+            btn?.focus();
         }
     }, [message]);
+
+    const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Escape') { onClose(); return; }
+        if (e.key !== 'Tab') return;
+        const focusable = e.currentTarget.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+            if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+    };
 
     if (!message) return null;
 
@@ -28,9 +44,11 @@ const IncorrectActionWidget: React.FC<IncorrectActionWidgetProps> = ({ message, 
             {/* FIX (P1-G): role="dialog", aria-modal, aria-labelledby */}
             {/* Modal */}
             <div
+                ref={modalRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="incorrect-action-title"
+                onKeyDown={handleModalKeyDown}
                 className="shake relative bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 fade-in duration-200 border border-red-100"
             >
                 <div className="bg-gradient-to-br from-red-500 to-red-600 p-8 flex flex-col items-center justify-center text-white text-center relative overflow-hidden">
