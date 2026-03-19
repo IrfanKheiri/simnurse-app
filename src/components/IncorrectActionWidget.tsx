@@ -37,6 +37,15 @@ const IncorrectActionWidget: React.FC<IncorrectActionWidgetProps> = ({ message, 
     if (!message) return null;
 
     return createPortal(
+        <>
+        <style>{`
+            @media (prefers-reduced-motion: reduce) {
+                .incorrect-modal {
+                    animation: none !important;
+                    transition: none !important;
+                }
+            }
+        `}</style>
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-6 pointer-events-none">
             {/* Backdrop — constrained to 440px app column so it doesn't bleed into desktop gutters */}
             <div className="absolute left-1/2 -translate-x-1/2 w-full max-w-[440px] inset-y-0 bg-slate-900/60 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
@@ -49,7 +58,7 @@ const IncorrectActionWidget: React.FC<IncorrectActionWidgetProps> = ({ message, 
                 aria-modal="true"
                 aria-labelledby="incorrect-action-title"
                 onKeyDown={handleModalKeyDown}
-                className="shake relative bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 fade-in duration-200 border border-red-100"
+                className="incorrect-modal shake relative bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 fade-in duration-200 border border-red-100"
             >
                 <div className="bg-gradient-to-br from-red-500 to-red-600 p-8 flex flex-col items-center justify-center text-white text-center relative overflow-hidden">
                     <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
@@ -79,7 +88,8 @@ const IncorrectActionWidget: React.FC<IncorrectActionWidgetProps> = ({ message, 
                     </button>
                 </div>
             </div>
-        </div>,
+        </div>
+        </>,
         document.body
     );
 };

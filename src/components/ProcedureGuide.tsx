@@ -77,6 +77,9 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
             {/* Constrain card to app shell width, mb-20 clears the fixed BottomNav */}
             <div className="relative w-full sm:max-w-md mb-16">
                 <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Procedure guide"
                     className={cn(
                         "w-full bg-white rounded-t-3xl shadow-2xl transition-transform duration-300 ease-out border-t border-slate-100",
                         isOpen ? "translate-y-0" : "translate-y-full"
