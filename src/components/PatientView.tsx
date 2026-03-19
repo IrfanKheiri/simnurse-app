@@ -12,8 +12,16 @@ interface PatientViewProps {
 }
 
 /** FIX (H11): Generate contextual clinical narrative from live vitals */
-function buildClinicalNote(vitals: PatientState | null): string {
+function buildClinicalNote(vitals: PatientState | null, unlocked: boolean): string {
     if (!vitals) return '"Patient status loading..."';
+
+    // When vitals haven't been assessed yet, show only what's visually apparent
+    if (!unlocked) {
+        if (!vitals.pulsePresent) {
+            return '"Patient is UNRESPONSIVE. Begin your primary survey — assess airway, breathing, and circulation immediately."';
+        }
+        return '"Patient is in bed. Conduct a systematic assessment to reveal clinical findings."';
+    }
 
     const parts: string[] = [];
     const isCyanotic = vitals.spo2 < 90;
@@ -106,12 +114,12 @@ function buildClinicalNote(vitals: PatientState | null): string {
 const patientIllustrationSrc = `${import.meta.env.BASE_URL}patient-illustration.png`;
 
 /** FIX (L19): Confirmation dialog before ending the scenario */
-/** FIX (P1-F): Focus the Continue button when the dialog mounts */
+/** FIX (P1-F): Focus the End & Debrief button when the dialog mounts (matches user intent) */
 const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }> = ({ onConfirm, onCancel }) => {
-    const continueButtonRef = useRef<HTMLButtonElement>(null);
+    const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
-        continueButtonRef.current?.focus();
+        confirmButtonRef.current?.focus();
     }, []);
 
     return createPortal(
@@ -129,7 +137,6 @@ const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }
                 </p>
                 <div className="flex gap-3">
                     <button
-                        ref={continueButtonRef}
                         type="button"
                         onClick={onCancel}
                         className="flex-1 py-3 rounded-2xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all"
@@ -137,6 +144,7 @@ const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }
                         Continue
                     </button>
                     <button
+                        ref={confirmButtonRef}
                         id="end-scenario-confirm-btn"
                         type="button"
                         onClick={onConfirm}
@@ -159,7 +167,7 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
     const isCyanotic = o2Saturation < 90;
     const isArrest = vitals ? !vitals.pulsePresent : false;
 
-    const clinicalNote = buildClinicalNote(vitals);
+    const clinicalNote = buildClinicalNote(vitals, unlocked);
 
     // FIX (P1-C): Cap displayed badges at 3, show +N more pill for overflow
     const MAX_BADGES = 3;
