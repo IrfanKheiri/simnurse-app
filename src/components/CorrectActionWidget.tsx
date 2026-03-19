@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle } from 'lucide-react';
 
@@ -10,12 +10,28 @@ interface CorrectActionWidgetProps {
 
 const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDismiss, variant }) => {
     const isIneffective = variant === 'ineffective';
+    const modalRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
-        const timer = setTimeout(() => {
-            document.getElementById('correct-action-continue-btn')?.focus();
-        }, 0);
-        return () => clearTimeout(timer);
+        const btn = modalRef.current?.querySelector<HTMLButtonElement>('button');
+        btn?.focus();
     }, []);
+
+    const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Escape') { onDismiss(); return; }
+        if (e.key !== 'Tab') return;
+        const focusable = e.currentTarget.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+            if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+    };
 
     return createPortal(
         <>
@@ -28,6 +44,12 @@ const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDi
                 .correct-pulse {
                     animation: correctPulse 0.3s ease-out both;
                 }
+                @media (prefers-reduced-motion: reduce) {
+                    .correct-pulse {
+                        animation: none;
+                        opacity: 1;
+                    }
+                }
             `}</style>
             <div className="fixed inset-0 z-[999] flex items-center justify-center p-6 pointer-events-none">
                 {/* Backdrop — constrained to 440px app column so it doesn't bleed into desktop gutters */}
@@ -38,9 +60,11 @@ const CorrectActionWidget: React.FC<CorrectActionWidgetProps> = ({ message, onDi
 
                 {/* Modal */}
                 <div
+                    ref={modalRef}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="correct-action-title"
+                    onKeyDown={handleModalKeyDown}
                     className="correct-pulse relative bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden pointer-events-auto border border-green-100"
                 >
                     <div className={`${isIneffective ? 'bg-gradient-to-br from-amber-500 to-amber-600' : 'bg-gradient-to-br from-green-500 to-green-600'} p-8 flex flex-col items-center justify-center text-white text-center relative overflow-hidden`}>
