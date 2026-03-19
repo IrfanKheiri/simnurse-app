@@ -25,15 +25,6 @@ const KEYBOARD_SHORTCUTS: { key: string; description: string }[] = [
   { key: '? / H', description: 'Open / close help panel' },
 ];
 
-const handleResetAll = (resetAll: () => Promise<void>) => {
-  if (
-    window.confirm(
-      'Reset everything?\n\nThis will clear all guided tour progress, feedback, session history, and suppressed guides. The app will reload and start fresh.\n\nThis cannot be undone.'
-    )
-  ) {
-    void resetAll();
-  }
-};
 
 const GlobalTipsAccordion: React.FC<{
   tips: import('../data/helpContent').HelpTip[];
@@ -92,6 +83,7 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ helpSystem }) => {
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
   const [isDesktop, setIsDesktop] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
 
   // Detect non-touch (desktop) device once on mount
   useEffect(() => {
@@ -209,9 +201,15 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ helpSystem }) => {
               <button
                 type="button"
                 onClick={() => isMidTour ? resumeWalkthrough() : startWalkthrough()}
-                className="bg-medical-500 text-white rounded-xl text-sm font-bold px-4 py-2.5 w-full hover:bg-medical-600 transition-colors active:scale-95"
+                className={`text-white rounded-xl text-sm font-bold px-4 py-2.5 w-full transition-colors active:scale-95 ${
+                  isMidTour
+                    ? 'bg-indigo-500 hover:bg-indigo-600'
+                    : 'bg-medical-500 hover:bg-medical-600'
+                }`}
               >
-                {walkthroughBtnLabel}
+                {isMidTour
+                  ? `Resume — step ${helpSystem.walkthroughStepIndex + 1} of ${content.steps.length}`
+                  : walkthroughBtnLabel}
               </button>
             </div>
 
@@ -330,14 +328,34 @@ const HelpPanel: React.FC<HelpPanelProps> = ({ helpSystem }) => {
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">
                   Clears all tour progress, feedback, session history, and suppressed guides. The app will reload with a fresh state.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => handleResetAll(helpSystem.resetAll)}
-                  className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:scale-95 text-white rounded-xl text-sm font-bold px-4 py-2.5 transition-colors"
-                >
-                  <RotateCcw size={15} />
-                  Reset Everything
-                </button>
+                {resetPending ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setResetPending(false)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors active:scale-95"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setResetPending(false); void helpSystem.resetAll(); }}
+                      className="flex-[2] flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold px-4 py-2.5 transition-colors active:scale-95"
+                    >
+                      <RotateCcw size={15} />
+                      Yes, Reset
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setResetPending(true)}
+                    className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 active:scale-95 text-white rounded-xl text-sm font-bold px-4 py-2.5 transition-colors"
+                  >
+                    <RotateCcw size={15} />
+                    Reset Everything
+                  </button>
+                )}
               </div>
             </div>
           </div>
