@@ -31,15 +31,17 @@ interface EvaluationSummaryProps {
     onReturnToLibrary: () => void;
     onReviewProcedure: (id: string) => void;
     onHelpClick?: () => void;
+    /** When true, session logs are still being fetched — show spinner in gauge */
+    actionsLoading?: boolean;
 }
 
-const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
+const ScoreGauge: React.FC<{ score: number; loading?: boolean }> = ({ score, loading }) => {
     const radius = 50;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (score / 100) * circumference;
 
     const getPerformanceTier = () => {
-        if (score >= 95) return { label: 'Expert',     color: '#10b981', icon: Trophy };
+        if (score >= 95) return { label: 'Expert',     color: '#6366f1', icon: Trophy };
         if (score >= 88) return { label: 'Proficient', color: '#10b981', icon: Star };
         if (score >= 80) return { label: 'Competent',  color: '#f59e0b', icon: Target };
         if (score >= 60) return { label: 'Developing', color: '#f97316', icon: Info };
@@ -47,6 +49,19 @@ const ScoreGauge: React.FC<{ score: number }> = ({ score }) => {
     };
 
     const tier = getPerformanceTier();
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center py-4 text-center">
+                <div className="w-40 h-40 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-medical-500" />
+                </div>
+                <p className="text-xs text-slate-400 mt-4 font-semibold uppercase tracking-wider">
+                    Loading results…
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="relative flex flex-col items-center justify-center py-4 text-center">
@@ -98,13 +113,29 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                 </div>
                 <p className="text-sm font-bold text-slate-600">No interventions recorded</p>
                 <p className="text-xs text-slate-400 max-w-[220px] leading-relaxed">
-                    No actions were applied during this session. Return to the scenario and use the Actions tab to treat the patient.
+                    No actions were applied during this session. Restart the scenario and use the Actions tab to treat the patient.
                 </p>
             </div>
         );
     }
 
     return (
+        <div>
+            {/* Color legend */}
+            <div className="flex items-center gap-4 mb-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                    Correct
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                    Duplicate
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+                    Incorrect
+                </span>
+            </div>
         <div className="relative pb-8">
             <div className="absolute left-[27px] top-6 bottom-0 w-[2px] bg-slate-100 rounded-full" />
             <div className="space-y-8">
@@ -199,6 +230,7 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                 ))}
             </div>
         </div>
+        </div>
     );
 };
 
@@ -212,6 +244,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
     onReturnToLibrary,
     onReviewProcedure: _onReviewProcedure,
     onHelpClick,
+    actionsLoading,
 }) => {
     const [reviewAction, setReviewAction] = useState<Action | null>(null);
 
@@ -263,7 +296,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-slate-900 pointer-events-none">
                         <Trophy size={160} strokeWidth={1} />
                     </div>
-                    <ScoreGauge score={score} />
+                    <ScoreGauge score={score} loading={actionsLoading} />
                 </section>
 
                 {/* P3-A (ISSUE-08): Scenario-specific outcome narrative */}

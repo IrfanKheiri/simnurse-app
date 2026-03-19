@@ -411,6 +411,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   const [correctActionMessage, setCorrectActionMessage] = useState<string | null>(null);
   const [scenarioOutcome, setScenarioOutcome] = useState<'success' | 'failed' | 'manual'>('manual');
   const [evalActions, setEvalActions] = useState<ActionFeedback[]>([]);
+  const [evalActionsLoading, setEvalActionsLoading] = useState(false);
   // R-15: Track rejected actions for the BottomNav badge
   const [rejectionCount, setRejectionCount] = useState(0);
   const [unlocked, setUnlocked] = useState<Record<'hr' | 'spo2' | 'bp' | 'rr', boolean>>({
@@ -544,10 +545,13 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
 
     let cancelled = false;
 
+    setEvalActionsLoading(true);
+
     void (async () => {
       const logs = await db.sessionLogs.where('session_id').equals(sessionId).sortBy('timestamp');
       if (!cancelled) {
         setEvalActions(buildActionFeedback(logs, activeScenario));
+        setEvalActionsLoading(false);
       }
     })();
 
@@ -722,6 +726,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         <EvaluationSummary
           score={score}
           actions={evalActions}
+          actionsLoading={evalActionsLoading}
           clinicalConclusion={clinicalConclusion}
           outcome={scenarioOutcome}
           conclusion={activeScenario?.conclusion}
@@ -735,6 +740,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
             setSessionId(null);
             setShowSummary(false);
             setEvalActions([]);
+            setEvalActionsLoading(false);
             setScenarioOutcome('manual');
             setActiveTab('patient');
             onScenarioActiveChange(false);
