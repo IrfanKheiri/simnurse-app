@@ -156,6 +156,7 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
       'simnurse_onboarding_complete',
       'simnurse_welcome_dismissed',
       'suppressedProcedures',
+      'simnurse_inspection_hint_dismissed',
     ];
     LS_KEYS.forEach((key) => localStorage.removeItem(key));
     try {
