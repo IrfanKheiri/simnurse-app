@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Activity, ImageOff } from 'lucide-react';
+import { X, Check, Activity, BookOpen } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -31,12 +31,25 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            const timer = setTimeout(() => {
-                closeButtonRef.current?.focus();
-            }, 0);
-            return () => clearTimeout(timer);
+            closeButtonRef.current?.focus();
         }
     }, [isOpen]);
+
+    const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Escape') { onClose(); return; }
+        if (e.key !== 'Tab') return;
+        const focusable = e.currentTarget.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+            if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -69,6 +82,7 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
                         isOpen ? "translate-y-0" : "translate-y-full"
                     )}
                     style={{ maxHeight: '88vh', overflowY: 'auto' }}
+                    onKeyDown={handleModalKeyDown}
                 >
                     {/* Visual Handle */}
                     <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mt-4 mb-2" />
@@ -97,8 +111,8 @@ const ProcedureGuide: React.FC<ProcedureGuideProps> = ({
 
                         {/* R-5: Static diagram placeholder — animated rings removed */}
                         <div className="aspect-[16/7] w-full bg-slate-100 rounded-xl mb-4 flex items-center justify-center gap-2 text-slate-400 text-xs">
-                            <ImageOff size={18} strokeWidth={1.5} />
-                            <span>Diagram not available</span>
+                            <BookOpen size={18} strokeWidth={1.5} />
+                            <span>See AHA guidelines for illustrated technique</span>
                         </div>
 
                         {/* Step-by-Step Protocol */}
