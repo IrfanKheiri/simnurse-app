@@ -57,21 +57,33 @@ const VitalCard: React.FC<VitalCardProps> = ({
         >
             <div className="flex justify-between items-start mb-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</span>
-                <div className={cn("p-2 rounded-lg", isLocked ? "bg-slate-200" : cn(cls.iconBg, cls.iconText))}>
-                    {isLocked ? <Lock size={16} className="text-slate-400" /> : <Icon size={18} />}
-                </div>
+                {isLocked ? (
+                    <button
+                        type="button"
+                        onClick={onUnlock}
+                        aria-label={`Unlock ${label} reading`}
+                        className="p-2 rounded-lg bg-slate-200 hover:bg-slate-300 transition-colors active:scale-95"
+                    >
+                        <Lock size={16} className="text-slate-500" />
+                    </button>
+                ) : (
+                    <div className={cn("p-2 rounded-lg", cls.iconBg, cls.iconText)}>
+                        <Icon size={18} />
+                    </div>
+                )}
             </div>
 
             <div className="mt-auto">
                 {isLocked ? (
                     <div className="flex flex-col gap-1">
-                        <span className="text-2xl font-bold text-slate-500 italic">--</span>
+                        <span className="text-xl font-black text-slate-400 tracking-widest">• • •</span>
                         <button
                             type="button"
                             onClick={onUnlock}
-                            className="text-xs text-medical-700 font-semibold hover:underline focus:outline-none text-left min-h-[44px] flex items-center"
+                            className="text-xs text-medical-600 font-bold hover:underline focus:outline-none text-left min-h-[44px] flex items-center"
+                            aria-label={`Inspect to unlock ${label}`}
                         >
-                            Perform Inspection to unlock
+                            Tap to inspect
                         </button>
                     </div>
                 ) : (
