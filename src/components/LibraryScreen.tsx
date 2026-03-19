@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import type { Scenario } from '../types/scenario';
-import { Play, Activity, Clock, ShieldAlert, HeartPulse, Stethoscope, BriefcaseMedical, X, BookOpen, Zap, Gauge, HeartOff, Flame, User, Heart, Wind, Droplets, Search, Trash2 } from 'lucide-react';
+import { Play, Activity, Clock, ShieldAlert, HeartPulse, Stethoscope, BriefcaseMedical, X, BookOpen, Zap, Gauge, HeartOff, Flame, User, Heart, Wind, Droplets, Search, Trash2, RefreshCcw } from 'lucide-react';
+import { reseedScenarios } from '../lib/db';
 
 const WELCOME_DISMISSED_KEY = 'simnurse_welcome_dismissed';
 
@@ -171,6 +172,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario, onPrevi
     () => localStorage.getItem(WELCOME_DISMISSED_KEY) !== 'true'
   );
   const [previewScenario, setPreviewScenario] = useState<Scenario | null>(null);
+  const [clearAllPending, setClearAllPending] = useState(false);
   // R-13: Search/filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProtocol, setSelectedProtocol] = useState<'All' | 'BLS' | 'ACLS' | 'PALS'>('All');
@@ -241,16 +243,36 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario, onPrevi
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">Simulations</h1>
           {recentLogs && recentLogs.length > 0 && (
-            <button
-              type="button"
-              onClick={() => void clearAllHistory()}
-              className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-red-500 transition-colors"
-              title="Clear all session history"
-              aria-label="Clear all scenario history"
-            >
-              <Trash2 size={13} />
-              Clear all
-            </button>
+            clearAllPending ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setClearAllPending(false)}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setClearAllPending(false); void clearAllHistory(); }}
+                  className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 transition-colors"
+                >
+                  <Trash2 size={13} />
+                  Yes, clear all
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setClearAllPending(true)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-red-500 transition-colors"
+                title="Clear all session history"
+                aria-label="Clear all scenario history"
+              >
+                <Trash2 size={13} />
+                Clear all
+              </button>
+            )
           )}
         </div>
         <p className="text-sm font-medium text-slate-500">
@@ -343,14 +365,22 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ onSelectScenario, onPrevi
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-medical-500"></div>
           </div>
         ) : scenarios.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center opacity-70">
-            <div className="p-4 bg-slate-100 rounded-full mb-4">
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="p-4 bg-slate-100 rounded-full mb-4 opacity-70">
                <BriefcaseMedical size={32} className="text-slate-400" />
             </div>
-            <h3 className="text-base font-bold text-slate-700 mb-1">Library Empty</h3>
-            <p className="text-sm text-slate-500 max-w-[250px]">
+            <h3 className="text-base font-bold text-slate-700 mb-1 opacity-70">Library Empty</h3>
+            <p className="text-sm text-slate-500 max-w-[250px] mb-5 opacity-70">
               No scenarios found in the local database. The seed file may be missing or failed to load.
             </p>
+            <button
+              type="button"
+              onClick={() => { void db.scenarios.clear().then(() => reseedScenarios(db.scenarios)); }}
+              className="flex items-center gap-2 bg-medical-500 text-white rounded-xl text-sm font-bold px-4 py-2.5 hover:bg-medical-600 transition-colors active:scale-95"
+            >
+              <RefreshCcw size={15} />
+              Reload Scenarios
+            </button>
           </div>
         ) : (() => {
           // R-13: filter by search query against title, domain, difficulty
