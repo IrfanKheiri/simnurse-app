@@ -484,6 +484,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     setShowSummary(false);
     setScenarioOutcome('manual');
     setEvalActions([]);
+    setEvalActionsLoading(false);
     setIncorrectActionMessage(null);
     onScenarioActiveChange(true);
   }, [onScenarioActiveChange]);
