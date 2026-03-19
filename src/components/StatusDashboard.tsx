@@ -179,6 +179,21 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                         <span className="text-[10px] text-slate-400 mt-1 font-semibold uppercase">
                             {scenarioProgressPct}% Scenario Objective Complete
                         </span>
+                        {/* Color legend */}
+                        <div className="flex items-center gap-3 mt-1.5">
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" aria-hidden="true" />
+                                On track
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <span className="w-2 h-2 rounded-full bg-medical-500 shrink-0" aria-hidden="true" />
+                                In progress
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                                Early stage
+                            </span>
+                        </div>
                         <span className="text-[10px] text-slate-400 mt-1">
                             Based on protocol completion and scenario outcome targets.
                         </span>
