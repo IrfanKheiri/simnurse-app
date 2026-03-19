@@ -196,7 +196,6 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
             {/* Top panel */}
             <div
                 className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
-                onClick={skipWalkthrough}
                 style={{
                     position: 'fixed',
                     top: 0,
@@ -209,7 +208,6 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
             {/* Bottom panel */}
             <div
                 className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
-                onClick={skipWalkthrough}
                 style={{
                     position: 'fixed',
                     top: targetRect.bottom,
@@ -222,7 +220,6 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
             {/* Left panel */}
             <div
                 className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
-                onClick={skipWalkthrough}
                 style={{
                     position: 'fixed',
                     top: targetRect.top,
@@ -235,7 +232,6 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
             {/* Right panel */}
             <div
                 className="pointer-events-auto bg-slate-900/60 backdrop-blur-sm"
-                onClick={skipWalkthrough}
                 style={{
                     position: 'fixed',
                     top: targetRect.top,
@@ -243,23 +239,6 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
                     right: 0,
                     height: targetRect.height,
                     zIndex: 999,
-                }}
-            />
-
-            {/* Spotlight guard — intercepts taps on the spotlit element to advance tour */}
-            <div
-                className="pointer-events-auto"
-                onClick={isLastStep ? helpSystem.completeWalkthrough : helpSystem.nextStep}
-                title="Tap to advance tour"
-                style={{
-                    position: 'fixed',
-                    top: targetRect.top,
-                    left: targetRect.left,
-                    width: targetRect.width,
-                    height: targetRect.height,
-                    zIndex: 999,
-                    cursor: 'pointer',
-                    background: 'transparent',
                 }}
             />
 
@@ -283,6 +262,10 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
                                 )}
                             />
                         ))}
+                        {/* Step counter */}
+                        <span className="ml-2 text-[10px] font-bold text-slate-400 tabular-nums">
+                            {walkthroughStepIndex + 1}/{steps.length}
+                        </span>
                     </div>
                     {/* Close button */}
                     <button
