@@ -102,7 +102,6 @@ const Header: React.FC<HeaderProps> = ({
   elapsedSec = 0,
 }) => {
   const hasMonitor = monitorState !== null && unlocked !== undefined;
-  const hasUrgency = urgencyItems.length > 0;
 
   return (
     <header id="app-header" className="sticky top-0 z-50 flex flex-col border-b border-slate-100 bg-white">
@@ -132,15 +131,15 @@ const Header: React.FC<HeaderProps> = ({
               onClick={onHelpClick}
               type="button"
               className="min-h-11 min-w-11 rounded-xl bg-slate-50 p-2.5 text-slate-500 transition-colors hover:bg-slate-100 active:scale-95"
-              title="Open Help"
-              aria-label="Open contextual help panel"
+              title={walkthroughCompleted ? 'Open Help' : 'Open Help (guided tour available)'}
+              aria-label={walkthroughCompleted ? 'Open contextual help panel' : 'Open contextual help panel — guided tour available'}
             >
               <HelpCircle size={20} />
             </button>
             {!walkthroughCompleted && (
               <span
                 aria-hidden="true"
-                className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white animate-pulse"
+                className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-medical-500 ring-2 ring-white animate-pulse"
               />
             )}
           </div>
@@ -153,7 +152,7 @@ const Header: React.FC<HeaderProps> = ({
           {/* HR */}
           <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5">
             <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-[10px] font-semibold leading-none">HR</span>
+              <span className="text-slate-300 text-[10px] font-semibold leading-none">HR</span>
               {unlocked!.hr && (() => {
                 const d = decayArrow(vitalDecayRates.hr);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
@@ -173,7 +172,7 @@ const Header: React.FC<HeaderProps> = ({
           {/* BP */}
           <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
             <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-[10px] font-semibold leading-none">BP</span>
+              <span className="text-slate-300 text-[10px] font-semibold leading-none">BP</span>
               {unlocked!.bp && (() => {
                 const d = decayArrow(vitalDecayRates.bp);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
@@ -193,7 +192,7 @@ const Header: React.FC<HeaderProps> = ({
           {/* SpO₂ */}
           <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
             <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-[10px] font-semibold leading-none">SpO₂</span>
+              <span className="text-slate-300 text-[10px] font-semibold leading-none">SpO₂</span>
               {unlocked!.spo2 && (() => {
                 const d = decayArrow(vitalDecayRates.spo2);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
@@ -213,7 +212,7 @@ const Header: React.FC<HeaderProps> = ({
           {/* RR */}
           <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
             <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-[10px] font-semibold leading-none">RR</span>
+              <span className="text-slate-300 text-[10px] font-semibold leading-none">RR</span>
               {unlocked!.rr && (() => {
                 const d = decayArrow(vitalDecayRates.rr);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
@@ -235,24 +234,32 @@ const Header: React.FC<HeaderProps> = ({
       {/* ── UrgencyStrip: merged failure proximity + intervention countdowns ── */}
       {/* Render always when monitor is active so walkthrough can target it */}
       {hasMonitor && (
-        <div
-          id="urgency-strip"
-          className={`flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 scrollbar-none transition-all duration-200 ${
-            hasUrgency ? 'py-1.5 min-h-[2rem]' : 'py-0 overflow-hidden'
-          }`}
-          aria-label="Timing alerts"
-          style={{ height: hasUrgency ? undefined : 0 }}
-        >
-          {urgencyItems.map((item) => (
-            <span
-              key={item.key}
-              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
-              title={`${item.type === 'failure' ? 'Failure risk' : 'Intervention'}: ${item.label} — ${Math.ceil(item.remainingSec)}s remaining`}
-            >
-              {item.label}
-              <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
-            </span>
-          ))}
+        <div className="relative">
+          <div
+            id="urgency-strip"
+            className="flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 scrollbar-none transition-all duration-200 py-1.5 min-h-[2rem]"
+            aria-label="Timing alerts"
+          >
+            {urgencyItems.map((item) => (
+              <span
+                key={item.key}
+                role="status"
+                tabIndex={0}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
+                aria-label={`${item.urgency === 'critical' ? 'Critical' : 'Alert'}: ${item.label} — ${Math.ceil(item.remainingSec)} seconds remaining`}
+                title={`${item.type === 'failure' ? 'Failure risk' : 'Intervention'}: ${item.label} — ${Math.ceil(item.remainingSec)}s remaining`}
+              >
+                {item.label}
+                <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
+              </span>
+            ))}
+          </div>
+          {urgencyItems.length > 0 && (
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-slate-800 to-transparent"
+              aria-hidden="true"
+            />
+          )}
         </div>
       )}
     </header>
