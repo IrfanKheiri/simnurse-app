@@ -73,7 +73,7 @@ Non-obvious facts that cause bugs before you've read the source:
 
 **ISSUE-04** — OnboardingTour had a bug where it auto-started on the library screen. Fixed with `scenarioActive` prop guard. WalkthroughEngine has equivalent auto-skip for missing DOM targets.
 
-**ISSUE-05** — `suppressedProcedures` localStorage key must NOT be cleared on scenario start. ActionsScreen's `initialActionIdToReview` effect unsuppresses the reviewed action specifically.
+**ISSUE-05** — See §4 Critical Gotchas. Additionally: ActionsScreen's `initialActionIdToReview` effect unsuppresses the reviewed action specifically.
 
 **ISSUE-08** — `conclusion` field (post-stabilization narrative) added to `Scenario` type; shown in EvaluationSummary on success (P3-A).
 
@@ -117,7 +117,7 @@ Non-obvious facts that cause bugs before you've read the source:
 
 **Score thresholds duplicated** — 95%/88%/80%/60% tiers appear in `helpContent.ts` (tip body) AND `EvaluationSummary.tsx` (ScoreGauge). Update both if thresholds change.
 
-**ECGWaveform RHYTHM_COLOUR duplicated** — hex strings must match `vital-rhythm-*` tokens in `tailwind.config.js`. No automatic synchronisation. (See R-12.)
+**ECGWaveform RHYTHM_COLOUR** — see R-12.
 
 **`tmp_audit_actions.ts` and `tmp_screenshot_audit.py`** — temporary scripts in project root; not part of build or tests. Review for removal.
 
