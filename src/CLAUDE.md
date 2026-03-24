@@ -36,7 +36,7 @@ Views are mutually exclusive. No client-side router. Back button does nothing.
 All types defined in `src/types/scenario.ts` — read that file as the authoritative source. Below are non-obvious semantics NOT visible in the types alone.
 
 **Critical semantics:**
-- `PatientState.bp` is a **STRING** `"120/80"` — parse with `parseBP()` for any numeric comparison (see root CLAUDE.md §4). Note: `parseBP()` is internal to `useScenarioEngine.ts` — components needing numeric BP must inline `parseInt(bp.split('/')[0] ?? '0', 10)`.
+- `PatientState.bp` is a **STRING** `"120/80"` — parse with `parseBP()` for any numeric comparison (see root CLAUDE.md §4). Note: `parseBP()` is not exported from `useScenarioEngine.ts`. Each call site handles the split locally — follow the pattern in the nearest existing file (`Header.tsx`, `PatientView.tsx`, etc.).
 - `ActiveIntervention.start_time` is **elapsed simulation seconds** — NOT wall-clock milliseconds
 - `BaselineProgression` vs `RateModifier` — structurally identical; semantic difference: baseline progressions run always; rate modifiers run only while their parent intervention is in `activeInterventions`
 - `ScheduledStateChange.id` tracks whether already applied (prevents double-firing); must be unique within a scenario
@@ -149,7 +149,7 @@ Failed scenarios penalize unexecuted required steps. Manually ended scenarios do
 
 ## 5. Data Flow (Condensed)
 
-**Starting a scenario**: Library card → preview modal → "Begin" calls `startScenarioRun()` (`structuredClone` scenario, generate `sessionId`, reset `unlocked`/`rejectionCount`/`activeTab`, set `activeScenario`) → engine dispatches `reset` → first tick at T+3s.
+**Starting a scenario**: Library card → preview modal → "Begin" calls `startScenarioRun()` (`structuredClone` scenario, generate `sessionId`, reset `unlocked`/`rejectionCount`/`activeTab`/`evalActionsLoading`/`incorrectActionMessage`/`showSummary`/`scenarioOutcome`, set `activeScenario`) → engine dispatches `reset` → first tick at T+3s.
 
 **Applying an intervention**: Actions tab → `handleActionClick` → ProcedureGuide modal (unless suppressed in localStorage) → "Confirm" → `applyIntervention(id)` → engine guard sequence → accepted: add to `activeInterventions`, increment `sequenceIndex`, optionally apply `success_state` → emit `InterventionEvent` → App.tsx flushes → show `CorrectActionWidget` or `IncorrectActionWidget`, persist to Dexie.
 
