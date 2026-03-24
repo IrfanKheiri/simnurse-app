@@ -13,7 +13,7 @@ No backend. No API calls. Fully offline after first load. All data in IndexedDB 
 ## 2. Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|-------|------------|
 | UI framework | React 19 |
 | Language | TypeScript ~5.9 (strict) |
 | Build tool | Vite 7 |
@@ -61,7 +61,7 @@ Non-obvious facts that cause bugs before you've read the source:
 - **`base: '/simnurse-app/'`** — all asset URLs are prefixed with this in production. Change only if deploying from domain root.
 - **`tsconfig.app.json`**: `verbatimModuleSyntax: true` requires `import type` for all type-only imports; `erasableSyntaxOnly: true` enforced.
 - **`test-setup.ts`**: uses `expect.extend(matchers)` pattern — NOT `import '@testing-library/jest-dom'` directly. Vitest 4 quirk: globals aren't available at module load time. Do not change this pattern.
-- **Cheat mode**: activated by a file named `.cheat_mode` served at `${BASE_URL}.cheat_mode`; app checks via a HEAD request on load. Soft mechanism — no server enforcement. Enables the instructor overlay.
+- **Cheat mode**: activated by a file named `.cheat_mode` served at `${import.meta.env.BASE_URL}.cheat_mode`; app checks via a HEAD request on load. Soft mechanism — no server enforcement. Enables the instructor overlay.
 
 ---
 
@@ -85,9 +85,7 @@ Non-obvious facts that cause bugs before you've read the source:
 
 **ISSUE-20** — MiniMonitor merged into Header (FIX L23). `MiniMonitor.tsx` still exists but is not rendered.
 
-**ISSUE-21** — Stale ticks can fire after status transition if React cleanup is delayed. The `status !== 'running'` guard at the top of the tick reducer case is authoritative.
-
-**ISSUE-22** — `buildDisplayState` uses `baseState` for condition evaluation. Explicitly prevents visual overrides from triggering success conditions.
+**ISSUE-21** — Stale post-completion ticks are handled by the `status !== 'running'` guard in the reducer; no external cleanup needed.
 
 **ISSUE-23** — In `apply_intervention`, success chance roll is checked before applying `success_state` mutations.
 
@@ -105,7 +103,7 @@ Non-obvious facts that cause bugs before you've read the source:
 
 **R-13** — LibraryScreen search is case-insensitive across title, domain, and difficulty.
 
-**R-14** — MiniMonitor `isCritical()` thresholds: HR ≤ 30 or = 0, SpO2 < 85, BP systolic < 70.
+**R-14** — MiniMonitor `isCritical()` thresholds: HR ≤ 30, SpO2 < 85, BP systolic < 70.
 
 **R-15** — BottomNav Actions tab shows a numbered red pill badge when `rejectionCount > 0`, capped at "9+". Count resets to 0 when Actions tab is visited.
 
