@@ -65,7 +65,6 @@ Non-obvious protocol rules in `src/data/seedScenarios.ts`. All other scenario de
 - **`bls_infant_choking`** — `abdominal_thrusts_heimlich_5` is a **distractor** with `priority: 1, success_chance: 0.0`. Teaches Heimlich contraindication in infants. Do not fix the 0% success rate.
 - **`pregnant_vfib_arrest`** — adds `left_uterine_displacement` (priority 200) and `perimortem_csection` (priority 150, 70% success). Scheduled message at T+300s per AHA/ACOG.
 - **`acs_stemi`** — scheduled deterioration to VFib at T+300s if treatment sequence not started. All medications have 100% success chance.
-- **`adult_pea_hypoxia`** — treatment is oxygenation (rescue_breathing 45%, intubation 90%), NOT defibrillation.
 - **Expected sequence arrays** — intervention IDs must exactly match keys in the `interventions` record. Typos silently break sequence evaluation.
 
 ---
