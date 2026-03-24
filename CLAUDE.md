@@ -1,85 +1,139 @@
-# CLAUDE.md
+# CLAUDE.md — SimNurse
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 1. What It Is
 
-## Commands
+SimNurse is a fully client-side SPA for training nursing students, paramedics, and clinical learners in emergency resuscitation protocols. The learner manages a deteriorating simulated patient, applying interventions in the correct sequence before the patient reaches the failure threshold. After each session, a scored debrief shows what was done vs. what the protocol required.
+
+Three competency levels: BLS (Basic Life Support), ACLS (Advanced Cardiac Life Support), PALS (Pediatric Advanced Life Support). 26 scenarios from beginner bystander AED to advanced obstetric cardiac arrest. Every intervention includes an AHA-cited rationale in the debrief.
+
+No backend. No API calls. Fully offline after first load. All data in IndexedDB (Dexie) and localStorage. Production path: `/simnurse-app/`.
+
+---
+
+## 2. Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| UI framework | React 19 |
+| Language | TypeScript ~5.9 (strict) |
+| Build tool | Vite 7 |
+| DB / persistence | Dexie 4 (IndexedDB ORM) |
+| Unit tests | Vitest 4 + @testing-library/react |
+| E2E tests | Playwright 1.58 |
+| Styling | Tailwind CSS 3 |
+| Icons | lucide-react |
+
+See `package.json` for full version list.
+
+---
+
+## 3. Commands
 
 ```bash
-npm run dev          # Dev server at localhost:5173
-npm run build        # TypeScript check + Vite production build (output: dist/)
-npm run lint         # ESLint check
-npm run test         # Vitest unit/component tests (jsdom)
-npm run test:e2e     # Playwright E2E tests (headless, all projects)
+npm install          # Install dependencies
+npm run dev          # Dev server at http://localhost:5173
+npm run build        # TypeScript check + Vite production bundle → dist/
+npm run test         # Unit tests (one-time pass)
+npm run test:e2e     # E2E tests, headless, all 9 projects
+npm run lint         # ESLint on all source files
 npm run preview      # Preview production build locally
-
-# Run a single unit test file
-npx vitest run src/path/to/file.test.ts
-
-# E2E variants
-npm run test:e2e:ui            # Interactive Playwright UI
-npm run test:e2e:headed        # Visible browser
-npm run test:e2e:chromium      # Chromium only
-npm run test:e2e:firefox       # Firefox only
-npm run test:e2e:webkit        # WebKit only
-npm run test:e2e:mobile        # iPhone 14 Pro Max emulation
-npm run test:e2e:ipad          # iPad Pro emulation
-npm run test:e2e:breakpoints   # All viewport widths (320–1920px)
-npm run test:e2e:update-snapshots  # Refresh visual regression baseline
-npm run test:e2e:report        # Open last Playwright HTML report
 ```
 
-## Architecture
+---
 
-SimNurse is a **fully client-side** React 19 / TypeScript SPA — no backend, no API calls. All state persists in IndexedDB via Dexie.
+## 4. Critical Gotchas
 
-### Core Data Flow
+Non-obvious facts that cause bugs before you've read the source:
 
-```
-seedScenarios.ts  ──►  db.ts (Dexie/IndexedDB)
-                            │
-                            ▼
-App.tsx  ──►  useScenarioEngine.ts  ──►  Components
-             (reducer + 3s timer)
-```
+- **`bp` is a STRING `"120/80"`** — never two numbers. Always parse with `parseBP()` for numeric operations. Most common source of confusion in the codebase.
+- **Two-state design**: the engine holds `baseState` (used for win/loss evaluation) and `displayState` (rendered). Visual overrides from active interventions apply to `displayState` only — never conflate them, or visual overrides will falsely trigger success/failure conditions.
+- **Infant lone-rescuer CPR**: `call_911` is LAST in expected sequence (AHA 2020 — CPR before EMS activation for lone rescuers). Two-rescuer: `call_911` is SECOND. Do not reorder these.
+- **Drowning protocol**: ventilation-first — `initial_rescue_breaths_5` (5 breaths) BEFORE compressions. Opposite of standard cardiac arrest sequence.
+- **Heimlich is a DISTRACTOR** in `bls_infant_choking` (`success_chance: 0.0`) — teaches that Heimlich is contraindicated in infants. Do not "fix" the 0% success rate.
+- **`suppressedProcedures` localStorage key must NOT be cleared on scenario start** (ISSUE-05) — persists the user's ProcedureGuide suppression preferences across scenarios. See the explicit comment in `startScenarioRun()`.
+- **WalkthroughEngine spotlight is fully interactive**; backdrop tap does NOT dismiss — only "Skip Tour" button or Escape key.
 
-1. **`src/data/seedScenarios.ts`** — The scenario DSL. Defines all clinical cases as data: initial `PatientState`, vital progressions, intervention definitions (with appropriateness ratings), expected action sequences, and success/failure conditions.
+---
 
-2. **`src/types/scenario.ts`** — The type backbone. All DSL types (`Scenario`, `PatientState`, `Condition`, `InterventionDefinition`, `EngineEvent`, `SessionLogEvent`) live here. Read this before modifying the engine or DSL.
+## 5. Configuration Quirks
 
-3. **`src/lib/db.ts`** — Dexie setup with two tables: `scenarios` (seeded from DSL) and `sessionLogs` (timestamped event log per run). Schema is at v5; increment on structural changes.
+- **`vite.config.ts`** imports from `vitest/config` NOT `vite` — required for the `test` config key. Do not change this import.
+- **`base: '/simnurse-app/'`** — all asset URLs are prefixed with this in production. Change only if deploying from domain root.
+- **`tsconfig.app.json`**: `verbatimModuleSyntax: true` requires `import type` for all type-only imports; `erasableSyntaxOnly: true` enforced.
+- **`test-setup.ts`**: uses `expect.extend(matchers)` pattern — NOT `import '@testing-library/jest-dom'` directly. Vitest 4 quirk: globals aren't available at module load time. Do not change this pattern.
+- **Cheat mode**: activated by a file named `.cheat_mode` served at `${BASE_URL}.cheat_mode`; app checks via a HEAD request on load. Soft mechanism — no server enforcement. Enables the instructor overlay.
 
-4. **`src/hooks/useScenarioEngine.ts`** — The simulation heart. A reducer-based engine that ticks every 3 seconds, applying vital progression, evaluating interventions, and emitting `EngineEvent`s. Returns engine state and dispatch functions consumed by `App.tsx`.
+---
 
-5. **`src/lib/scenarioProgress.ts`** — Scoring utility. Evaluates a completed session's `SessionLogEvent[]` against the scenario definition to produce protocol, outcome, and total scores shown in debrief.
+## 6. Known Issues & Technical Debt
 
-6. **`src/hooks/useHelpSystem.ts`** + **`src/data/helpContent.ts`** — Context-aware help subsystem. `helpContent.ts` is the help topic registry keyed by `AppContext`; `useHelpSystem.ts` manages walkthrough state, per-topic feedback, and the `OnboardingTour`/`WalkthroughEngine` lifecycle.
+### Documented Issues (ISSUE-XX)
 
-7. **`src/App.tsx`** — The orchestrator (≈800 lines). Manages three views (library, live scenario, debrief), session lifecycle, urgency strip computation, and cheat mode (triggered by `c` key or 3-finger downswipe).
+**ISSUE-02** — `meta` field added in DB v5; pre-v5 scenarios needed backfilling.
 
-### View Structure
+**ISSUE-04** — OnboardingTour had a bug where it auto-started on the library screen. Fixed with `scenarioActive` prop guard. WalkthroughEngine has equivalent auto-skip for missing DOM targets.
 
-- **Library view** — Scenario selection
-- **Live scenario view** — Three tabs: `PatientView` (bedside), `ActionsScreen` (searchable interventions), `StatusDashboard` (vitals/ECG)
-- **Debrief view** — `EvaluationSummary` with scoring derived from `sessionLogs`
+**ISSUE-05** — `suppressedProcedures` localStorage key must NOT be cleared on scenario start. ActionsScreen's `initialActionIdToReview` effect unsuppresses the reviewed action specifically.
 
-### Styling Conventions
+**ISSUE-08** — `conclusion` field (post-stabilization narrative) added to `Scenario` type; shown in EvaluationSummary on success (P3-A).
 
-Tailwind CSS with a custom medical theme. Key custom tokens in `tailwind.config.js`:
-- `medical-*` — teal-based app chrome colors
-- `vital-hr`, `vital-spo2`, `vital-bp`, `vital-rr`, `vital-temp` — per-vital display colors
+**ISSUE-15** — ActionsScreen `disabled` prop shows completion banner and disables actions when scenario ends while on Actions tab (P3-B).
 
-Use `clsx` + `tailwind-merge` for conditional class composition (both are installed).
+**ISSUE-16** — StatusDashboard passes live `rhythm` and `pulsePresent` to ECGWaveform to prevent stale rhythm display after state changes.
 
-### Testing
+**ISSUE-18** — `PatientDemographics` (`patient` field) added in DB v4; StatusDashboard displays patient name/age/gender when provided.
 
-- **Unit tests** (`src/**/*.test.{ts,tsx}`) — Vitest + jsdom + @testing-library/react. Setup in `src/test-setup.ts`.
-- **E2E tests** (`tests/**/*.spec.ts`) — Playwright with visual regression (2% max pixel diff). Snapshots in `tests/snapshots/`. Nine test projects covering 5 breakpoints, 2 devices, and 3 browsers.
+**ISSUE-20** — MiniMonitor merged into Header (FIX L23). `MiniMonitor.tsx` still exists but is not rendered.
 
-Visual regression baselines must be updated with `test:e2e:update-snapshots` when intentional UI changes are made.
+**ISSUE-21** — Stale ticks can fire after status transition if React cleanup is delayed. The `status !== 'running'` guard at the top of the tick reducer case is authoritative.
 
-### Key Constraints
+**ISSUE-22** — `buildDisplayState` uses `baseState` for condition evaluation. Explicitly prevents visual overrides from triggering success conditions.
 
-- **No backend** — never add server-side code or external API calls
-- **IndexedDB only** — all persistence goes through Dexie (`src/lib/db.ts`)
-- **Exception**: help walkthrough completion and user feedback use `localStorage` (keys `simnurse_completed_walkthroughs`, `simnurse_help_feedback`) — intentional, not a bug
-- **Vite base path** is `/simnurse-app/` — relevant for asset paths and routing
+**ISSUE-23** — In `apply_intervention`, success chance roll is checked before applying `success_state` mutations.
+
+**ISSUE-27** — LibraryScreen shows last 3 run outcomes as coloured dots on scenario cards (P3-G).
+
+### Requirement References (R-XX)
+
+**R-2** — `unlocked` state tracks revealed vitals; passed to PatientView (badge opacity) and StatusDashboard (VitalCard display).
+
+**R-4** — ProcedureGuide and EvaluationSummary clean up the guide on unmount to avoid portal memory leaks.
+
+**R-5** — ProcedureGuide shows static placeholder "See AHA guidelines for illustrated technique" with BookOpen icon.
+
+**R-12** — ECGWaveform `RHYTHM_COLOUR` constants mirror the `vital-rhythm-*` Tailwind tokens. **If you change either, update the other.** Manual sync — no automatic verification.
+
+**R-13** — LibraryScreen search is case-insensitive across title, domain, and difficulty.
+
+**R-14** — MiniMonitor `isCritical()` thresholds: HR ≤ 30 or = 0, SpO2 < 85, BP systolic < 70.
+
+**R-15** — BottomNav Actions tab shows a numbered red pill badge when `rejectionCount > 0`, capped at "9+". Count resets to 0 when Actions tab is visited.
+
+**R-16** — ActionsScreen action card labels use `line-clamp-2`.
+
+### Known Technical Debt
+
+**CheatOverlay `CHEAT_LABELS`** — manually maintained map of intervention ID → short label. Must be updated when intervention IDs are added or renamed in `seedScenarios.ts`. No compile-time verification.
+
+**OnboardingTour.tsx is superseded** — `WalkthroughEngine.tsx` is current. New development uses WalkthroughEngine.
+
+**Score thresholds duplicated** — 95%/88%/80%/60% tiers appear in `helpContent.ts` (tip body) AND `EvaluationSummary.tsx` (ScoreGauge). Update both if thresholds change.
+
+**ECGWaveform RHYTHM_COLOUR duplicated** — hex strings must match `vital-rhythm-*` tokens in `tailwind.config.js`. No automatic synchronisation. (See R-12.)
+
+**`tmp_audit_actions.ts` and `tmp_screenshot_audit.py`** — temporary scripts in project root; not part of build or tests. Review for removal.
+
+**Stale test mocks (3 files)** — pre-existing failures, not regressions:
+1. `LibraryScreen.test.tsx` — mock needs a `sessionLogs` table entry
+2. `ActionsScreen.test.tsx` — tests need `activeInterventions={[]}` and `elapsedSec={0}` props
+3. `StatusDashboard.test.tsx` — `getByText(/Quick Inspection/i)` needs `getByRole('button', { name: /Quick Inspection/i })`
+
+**Elapsed time bonus edge case** — when a scenario has only outcome conditions, elapsed bonus may not apply. Unit test expects 50%, not 53%. Test is authoritative.
+
+**`INTERVENTION_SHORT_LABELS`** — urgency strip label map in `App.tsx`; manually maintained like `CHEAT_LABELS`.
+
+---
+
+## 7. No Auth
+
+SimNurse has no authentication, accounts, or protected routes — entirely local to the browser.
