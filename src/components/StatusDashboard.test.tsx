@@ -68,7 +68,7 @@ describe('StatusDashboard', () => {
 
   it('renders the "Quick Inspection" button when not all vitals are unlocked', () => {
     render(<StatusDashboard vitals={mockVitals} unlocked={allLocked} setUnlocked={vi.fn()} />);
-    expect(screen.getByText(/Quick Inspection/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Quick Inspection/i })).toBeInTheDocument();
   });
 
   it('hides the "Quick Inspection" button when all vitals are already unlocked', () => {
@@ -79,7 +79,7 @@ describe('StatusDashboard', () => {
   it('calls setUnlocked with all vitals set to true when "Quick Inspection" is clicked', async () => {
     const mockSetUnlocked = vi.fn();
     render(<StatusDashboard vitals={mockVitals} unlocked={allLocked} setUnlocked={mockSetUnlocked} />);
-    await userEvent.click(screen.getByText(/Quick Inspection/i));
+    await userEvent.click(screen.getByRole('button', { name: /Quick Inspection/i }));
     // StatusDashboard calls setUnlocked with a plain object (handleInspectAll)
     expect(mockSetUnlocked).toHaveBeenCalledTimes(1);
   });

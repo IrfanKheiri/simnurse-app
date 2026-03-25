@@ -16,6 +16,15 @@ vi.mock('../lib/db', () => ({
     scenarios: {
       toArray: vi.fn(),
     },
+    sessionLogs: {
+      where: vi.fn(() => ({
+        equals: vi.fn(() => ({
+          reverse: vi.fn(() => ({
+            toArray: vi.fn().mockReturnValue([]),
+          })),
+        })),
+      })),
+    },
   },
 }));
 
