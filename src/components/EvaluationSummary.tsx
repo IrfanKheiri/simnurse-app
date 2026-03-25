@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, AlertTriangle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen, Lightbulb, HelpCircle } from 'lucide-react';
+import { PERFORMANCE_TIERS } from '../lib/scoreThresholds';
 import ProcedureGuide from './ProcedureGuide';
 import { ACTIONS } from './ActionsScreen';
 import type { Action } from './ActionsScreen';
@@ -40,12 +41,17 @@ const ScoreGauge: React.FC<{ score: number; loading?: boolean }> = ({ score, loa
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (score / 100) * circumference;
 
+    const TIER_UI = {
+        Expert:     { color: '#6366f1', icon: Trophy },
+        Proficient: { color: '#10b981', icon: Star },
+        Competent:  { color: '#f59e0b', icon: Target },
+        Developing: { color: '#f97316', icon: Info },
+        Novice:     { color: '#ef4444', icon: AlertCircle },
+    } as const;
+
     const getPerformanceTier = () => {
-        if (score >= 95) return { label: 'Expert',     color: '#6366f1', icon: Trophy };
-        if (score >= 88) return { label: 'Proficient', color: '#10b981', icon: Star };
-        if (score >= 80) return { label: 'Competent',  color: '#f59e0b', icon: Target };
-        if (score >= 60) return { label: 'Developing', color: '#f97316', icon: Info };
-        return             { label: 'Novice',      color: '#ef4444', icon: AlertCircle };
+        const match = PERFORMANCE_TIERS.find(t => score >= t.min) ?? PERFORMANCE_TIERS[PERFORMANCE_TIERS.length - 1];
+        return { label: match.label, ...TIER_UI[match.label] };
     };
 
     const tier = getPerformanceTier();

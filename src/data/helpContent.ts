@@ -1,4 +1,6 @@
-/*  */export type AppContext =
+import { PERFORMANCE_TIERS_HELP_STRING } from '../lib/scoreThresholds';
+
+export type AppContext =
   | 'library'
   | 'preview_modal'
   | 'patient'
@@ -59,7 +61,7 @@ export const GLOBAL_QUICK_TIPS: HelpTip[] = [
   {
     id: 'global-tip-5',
     heading: 'Score Interpretation',
-    body: 'Your score reflects the ratio of correct to total interventions: Expert ≥95%, Proficient ≥88%, Competent ≥80%, Developing ≥60%, Novice <60%. Lower scores indicate out-of-sequence or missed interventions — not speed.',
+    body: `Your score reflects the ratio of correct to total interventions: ${PERFORMANCE_TIERS_HELP_STRING}. Lower scores indicate out-of-sequence or missed interventions — not speed.`,
   },
   {
     id: 'global-tip-6',
@@ -429,7 +431,7 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         targetId: 'score-gauge',
         title: 'Performance Score',
         content:
-          'Your score reflects the ratio of correct to total interventions. Expert (≥95%), Proficient (≥88%), Competent (≥80%), Developing (≥60%), Novice (<60%).',
+          `Your score reflects the ratio of correct to total interventions. ${PERFORMANCE_TIERS_HELP_STRING}.`,
         position: 'bottom',
       },
       {
