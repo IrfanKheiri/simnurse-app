@@ -81,7 +81,7 @@ function peaY(t: number, midY: number): number {
 // R-12: Values mirror vital.rhythm.* tokens in tailwind.config.js
 // Canvas strokeStyle requires actual color values (not Tailwind classes), so the
 // hex strings are co-located here for clarity and kept in sync with the config.
-const RHYTHM_COLOUR: Record<HeartRhythm, string> = {
+export const RHYTHM_COLOUR: Record<HeartRhythm, string> = {
   Sinus:       '#10b981', // emerald   → vital.rhythm.sinus
   Bradycardia: '#34d399', // lighter emerald → vital.rhythm.bradycardia
   SVT:         '#f59e0b', // amber     → vital.rhythm.svt

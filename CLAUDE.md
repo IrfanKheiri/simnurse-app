@@ -83,7 +83,7 @@ Non-obvious facts that cause bugs before you've read the source:
 
 **ISSUE-18** — `PatientDemographics` (`patient` field) added in DB v4; StatusDashboard displays patient name/age/gender when provided.
 
-**ISSUE-20** — MiniMonitor merged into Header (FIX L23). `MiniMonitor.tsx` still exists but is not rendered.
+**ISSUE-20** — MiniMonitor merged into Header (FIX L23). `MiniMonitor.tsx` deleted.
 
 **ISSUE-21** — Stale post-completion ticks are handled by the `status !== 'running'` guard in the reducer; no external cleanup needed.
 
@@ -113,7 +113,7 @@ Non-obvious facts that cause bugs before you've read the source:
 
 **CheatOverlay `CHEAT_LABELS` and `INTERVENTION_SHORT_LABELS`** — label maps in `CheatOverlay.tsx` and `App.tsx`. Both are exported; `src/data/seedScenarios.test.ts` asserts completeness against `seedScenarios` at test time.
 
-**ECGWaveform RHYTHM_COLOUR** — see R-12.
+**ECGWaveform RHYTHM_COLOUR** — see R-12. `RHYTHM_COLOUR` is exported; `src/components/ECGWaveform.test.ts` asserts sync with `tailwind.config.js` at test time.
 
 ---
 
