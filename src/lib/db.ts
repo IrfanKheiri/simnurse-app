@@ -2,7 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import { seedScenarios } from '../data/seedScenarios';
 import type { Scenario, SessionLogEvent } from '../types/scenario';
 
-async function reseedScenarios(table: Table<Scenario, string>) {
+export async function reseedScenarios(table: Table<Scenario, string>) {
   await table.clear();
   await table.bulkAdd(seedScenarios);
 }

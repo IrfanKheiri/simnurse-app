@@ -379,6 +379,8 @@ export const seedScenarios: Scenario[] = [
 
   // Scenario 7 — adult_unstable_bradycardia
   // Changes: expected_sequence updated, atropine_1mg→atropine_0_5mg with success_chance 0.8→0.6, transcutaneous_pacing added
+  // Medical accuracy fix: added establish_iv between oxygen_nrb and atropine_0_5mg — atropine is an
+  //   IV drug; AHA 2020 ACLS bradycardia algorithm requires IV/IO access before any pharmacological intervention
   {
     scenario_id: 'adult_unstable_bradycardia',
     title: 'Adult Unstable Bradycardia',
@@ -395,8 +397,13 @@ export const seedScenarios: Scenario[] = [
       glucose: 120,
     },
     baseline_progressions: [{ vital: 'bp', modifier: -1, interval_sec: 60 }],
-    expected_sequence: ['oxygen_nrb', 'atropine_0_5mg', 'transcutaneous_pacing'],
+    expected_sequence: ['oxygen_nrb', 'establish_iv', 'atropine_0_5mg', 'transcutaneous_pacing'],
     interventions: {
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is required before any pharmacological intervention in symptomatic bradycardia; atropine, dopamine, and epinephrine are all IV drugs per AHA 2020 ACLS bradycardia algorithm — access must precede drug administration.',
+      },
       atropine_0_5mg: {
         duration_sec: 300,
         priority: 90,
@@ -477,6 +484,8 @@ export const seedScenarios: Scenario[] = [
 
   // Scenario 9 — adult_vtach_pulse
   // Changes: expected_sequence reordered (cardioversion first), amiodarone_300mg→amiodarone_150mg_stable
+  // Medical accuracy fix: added establish_iv between synchronized_cardioversion and amiodarone_150mg_stable —
+  //   amiodarone 150 mg is an IV infusion; IV access must be established before drug administration per AHA 2020 ACLS
   {
     scenario_id: 'adult_vtach_pulse',
     title: 'Adult Unstable Tachycardia (VTach with Pulse)',
@@ -493,8 +502,13 @@ export const seedScenarios: Scenario[] = [
       glucose: 125,
     },
     baseline_progressions: [{ vital: 'bp', modifier: -1, interval_sec: 20, decay_type: 'linear' }],
-    expected_sequence: ['synchronized_cardioversion', 'amiodarone_150mg_stable'],
+    expected_sequence: ['synchronized_cardioversion', 'establish_iv', 'amiodarone_150mg_stable'],
     interventions: {
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV/IO access is required before amiodarone administration; post-cardioversion antiarrhythmic therapy is delivered intravenously and cannot proceed without established access per AHA 2020 ACLS unstable tachycardia algorithm.',
+      },
       amiodarone_150mg_stable: {
         duration_sec: 600,
         priority: 50,
@@ -594,6 +608,9 @@ export const seedScenarios: Scenario[] = [
 
   // Scenario 11 — anaphylactic_shock
   // Changes: epinephrine_im → epinephrine_im_0_5mg everywhere
+  // Medical accuracy fix: added establish_iv and iv_fluid_bolus_anaphylaxis to expected_sequence —
+  //   500–1000 mL IV NS bolus is mandatory for anaphylaxis with hypotension (BP=75/40) per AHA/ACAAI guidelines;
+  //   IM epinephrine correctly remains first (no IV needed for IM route)
   {
     scenario_id: 'anaphylactic_shock',
     title: 'Anaphylactic Shock Progression',
@@ -613,8 +630,20 @@ export const seedScenarios: Scenario[] = [
       { vital: 'spo2', modifier: -1, interval_sec: 15 },
       { vital: 'bp', modifier: -1, interval_sec: 20 },
     ],
-    expected_sequence: ['epinephrine_im_0_5mg', 'oxygen_nrb', 'intubation'],
+    expected_sequence: ['epinephrine_im_0_5mg', 'oxygen_nrb', 'establish_iv', 'iv_fluid_bolus_anaphylaxis', 'intubation'],
     interventions: {
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'IV access is required for fluid resuscitation and for repeat epinephrine or vasopressor administration in anaphylaxis with haemodynamic compromise; IM epinephrine does not require IV access, so IV placement occurs after the initial IM dose per AHA/ACAAI guidelines.',
+      },
+      iv_fluid_bolus_anaphylaxis: {
+        duration_sec: 300,
+        priority: 75,
+        success_chance: 1.0,
+        state_overrides: { bp: '100/65' },
+        rationale: '500–1000 mL IV normal saline bolus corrects anaphylaxis-induced distributive shock by restoring intravascular volume; all hypotensive anaphylaxis patients require aggressive IV fluid resuscitation as an adjunct to epinephrine per AHA/ACAAI anaphylaxis guidelines.',
+      },
       epinephrine_im_0_5mg: {
         duration_sec: 1800,
         priority: 100,
@@ -790,6 +819,9 @@ export const seedScenarios: Scenario[] = [
   // Changes: expected_sequence updated, epinephrine_im→epinephrine_im_pediatric,
   //          high_flow_oxygen/albuterol_nebulizer/ipratropium_nebulizer/methylprednisolone_iv added,
   //          failure_conditions updated (spo2 max 65 added)
+  // Medical accuracy fix: added magnesium_sulfate_iv between methylprednisolone_iv and epinephrine_im_pediatric —
+  //   IV MgSO4 25–75 mg/kg (max 2g) is a core PALS 2020 intervention for severe paediatric asthma
+  //   unresponsive to bronchodilators, positioned before IM epinephrine in the escalation algorithm
   {
     scenario_id: 'pediatric_respiratory_arrest_asthma',
     title: 'Pediatric Resp. Arrest (Asthma)',
@@ -809,8 +841,15 @@ export const seedScenarios: Scenario[] = [
       { vital: 'spo2', modifier: -1, interval_sec: 10 },
       { vital: 'hr', modifier: -2, interval_sec: 20 },
     ],
-    expected_sequence: ['high_flow_oxygen', 'albuterol_nebulizer', 'ipratropium_nebulizer', 'methylprednisolone_iv', 'epinephrine_im_pediatric', 'rescue_breathing', 'intubation'],
+    expected_sequence: ['high_flow_oxygen', 'albuterol_nebulizer', 'ipratropium_nebulizer', 'methylprednisolone_iv', 'magnesium_sulfate_iv', 'epinephrine_im_pediatric', 'rescue_breathing', 'intubation'],
     interventions: {
+      magnesium_sulfate_iv: {
+        duration_sec: 1200,
+        priority: 77,
+        success_chance: 0.55,
+        success_state: { spo2: 90, rr: 30, hr: 135 },
+        rationale: 'IV magnesium sulfate 25–75 mg/kg (max 2 g) over 20 minutes is a PALS 2020 recommended adjunct for severe asthma exacerbation unresponsive to initial bronchodilators; it relaxes bronchial smooth muscle via calcium antagonism and reduces the need for intubation.',
+      },
       high_flow_oxygen: {
         duration_sec: 600,
         priority: 100,
@@ -934,6 +973,9 @@ export const seedScenarios: Scenario[] = [
   // BLS Scenario 1 — bls_adult_cardiac_arrest_bystander
   // High-quality adult CPR (single rescuer): 30:2, 2–2.4 in compressions, 100–120/min
   // BLS audit: added check_carotid_pulse (X3), open_airway_head_tilt_chin_lift (X5), resume_cpr_post_shock (X4)
+  // Medical accuracy fix: removed check_carotid_pulse from expected_sequence — AHA 2020 BLS guidelines explicitly
+  //   state lay rescuers should NOT attempt a pulse check; check_carotid_pulse remains in interventions as an
+  //   optional/distractor step but is not required in the lay-rescuer bystander algorithm
   {
     scenario_id: 'bls_adult_cardiac_arrest_bystander',
     title: 'Adult Cardiac Arrest — Bystander CPR',
@@ -958,7 +1000,7 @@ export const seedScenarios: Scenario[] = [
         message: 'Three minutes without CPR. Brain injury risk increases. Begin compressions immediately — push hard (2–2.4 in), push fast (100–120/min).',
       },
     ],
-    expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2', 'open_airway_head_tilt_chin_lift', 'rescue_breathing', 'aed_attach', 'resume_cpr_post_shock'],
+    expected_sequence: ['check_responsiveness', 'call_911', 'cpr_30_2', 'open_airway_head_tilt_chin_lift', 'rescue_breathing', 'aed_attach', 'resume_cpr_post_shock'],
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1216,9 +1258,12 @@ export const seedScenarios: Scenario[] = [
   // High-quality child CPR (1–8 yrs): ~2 in compressions, 100–120/min, 30:2 single rescuer
   // BLS audit: added check_carotid_pulse (X3), resume_cpr_post_shock (X4),
   //   fixed message (removed "1 breath per 3–5 sec"), fixed aed_attach label for pediatric pads
+  // Medical accuracy fix: title updated to "(Witnessed)" to justify call_911 before CPR —
+  //   AHA 2020 states call_911 FIRST for witnessed child collapse; lone-rescuer UNWITNESSED child
+  //   arrest follows the same CPR-before-911 sequence as infants; scheduled message updated to clarify
   {
     scenario_id: 'bls_child_cardiac_arrest',
-    title: 'Pediatric Cardiac Arrest — Child CPR',
+    title: 'Pediatric Cardiac Arrest — Child CPR (Witnessed)',
     patient: { name: 'Tyler Morris', age: '6yo', gender: 'M' },
     meta: { difficulty: 'Intermediate', domain: 'Pediatric', estimatedDurationSec: 600, protocol: 'BLS' },
     conclusion: 'Paediatric cardiac arrest resolved following high-quality CPR and AED defibrillation. Child admitted to PICU; early intervention by bystander rescuer improved neurological outcome.',
@@ -1237,7 +1282,7 @@ export const seedScenarios: Scenario[] = [
         id: 'child_arrest_hypoxic_cause',
         atSec: 60,
         changes: {},
-        message: 'Pediatric arrests are usually hypoxic. Give 1 breath per 30:2 cycle — push hard (~2 inches), push fast (100–120/min).',
+        message: 'This is a witnessed child arrest — 911 was called first (correct for witnessed collapse). Pediatric arrests are usually hypoxic. Push hard (~2 inches), push fast (100–120/min), give 1 breath per 30:2 cycle.',
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2_child', 'rescue_breathing_child', 'aed_attach', 'resume_cpr_post_shock'],
@@ -1304,6 +1349,9 @@ export const seedScenarios: Scenario[] = [
   // Two-rescuer child CPR: 15:2 ratio, switch roles, bag-valve-mask
   // BLS audit: added check_carotid_pulse (X3), resume_cpr_post_shock (X4),
   //   fixed aed_attach label for pediatric dose-attenuator pads
+  // Medical accuracy fix: added check_responsiveness (X1) and call_911 (X2) to the start of
+  //   expected_sequence — AHA 2020 BLS two-rescuer child algorithm requires assessment and EMS
+  //   activation BEFORE compressions begin (unlike lone-rescuer infant protocol)
   {
     scenario_id: 'bls_child_two_rescuer_cpr',
     title: 'Pediatric Cardiac Arrest — Two-Rescuer Child',
@@ -1328,8 +1376,21 @@ export const seedScenarios: Scenario[] = [
         message: 'Two-rescuer child CPR uses a 15:2 compression-to-ventilation ratio. Switch compressor every 2 minutes to prevent fatigue.',
       },
     ],
-    expected_sequence: ['cpr_15_2_child', 'check_carotid_pulse', 'bag_valve_mask_child', 'switch_compressor_roles', 'aed_attach', 'resume_cpr_post_shock'],
+    expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_15_2_child', 'bag_valve_mask_child', 'switch_compressor_roles', 'aed_attach', 'resume_cpr_post_shock'],
     interventions: {
+      check_responsiveness: {
+        duration_sec: 10,
+        priority: 200,
+        success_chance: 1,
+        success_state: { pulsePresent: false },
+        rationale: 'Confirming unresponsiveness is the mandatory first step in the two-rescuer paediatric BLS algorithm; while Rescuer 1 assesses the child, Rescuer 2 activates EMS simultaneously, enabling a faster combined response than a single rescuer per AHA 2020 BLS guidelines.',
+      },
+      call_911: {
+        duration_sec: 15,
+        priority: 190,
+        success_chance: 1,
+        rationale: 'In two-rescuer paediatric BLS, Rescuer 2 immediately calls 911 while Rescuer 1 assesses responsiveness; the second-rescuer advantage allows simultaneous EMS activation and patient assessment, unlike the lone-rescuer infant protocol per AHA 2020 BLS guidelines.',
+      },
       check_carotid_pulse: {
         duration_sec: 10,
         priority: 90,

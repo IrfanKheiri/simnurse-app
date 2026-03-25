@@ -230,8 +230,7 @@ const ECGWaveform: React.FC<ECGWaveformProps> = ({ rhythm, pulsePresent }) => {
             style={{ backgroundColor: colour }}
           />
           <span
-            className="text-[10px] font-mono font-bold uppercase tracking-wider"
-            style={{ color: colour }}
+            className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-100"
           >
             {label}
           </span>
