@@ -270,10 +270,7 @@ npm run test:e2e:ipad            # iPad Pro emulation
 npm run test:e2e:breakpoints     # All 5 viewport widths (320–1920px)
 ```
 
-### Stale Mock Fixes Needed (pre-existing, not regressions)
-1. **`LibraryScreen.test.tsx`** — add `sessionLogs` table entry to Dexie mock
-2. **`ActionsScreen.test.tsx`** — add `activeInterventions={[]}` and `elapsedSec={0}` props to render calls
-3. **`StatusDashboard.test.tsx`** — change `getByText(/Quick Inspection/i)` to `getByRole('button', { name: /Quick Inspection/i })`
+All 8 test files pass (65 tests). No known pre-existing failures.
 
 ---
 

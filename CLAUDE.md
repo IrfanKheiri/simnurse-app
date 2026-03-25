@@ -111,24 +111,9 @@ Non-obvious facts that cause bugs before you've read the source:
 
 ### Known Technical Debt
 
-**CheatOverlay `CHEAT_LABELS`** — manually maintained map of intervention ID → short label. Must be updated when intervention IDs are added or renamed in `seedScenarios.ts`. No compile-time verification.
-
-**OnboardingTour.tsx is superseded** — `WalkthroughEngine.tsx` is current. New development uses WalkthroughEngine.
-
-**Score thresholds duplicated** — 95%/88%/80%/60% tiers appear in `helpContent.ts` (tip body) AND `EvaluationSummary.tsx` (ScoreGauge). Update both if thresholds change.
+**CheatOverlay `CHEAT_LABELS` and `INTERVENTION_SHORT_LABELS`** — label maps in `CheatOverlay.tsx` and `App.tsx`. Both are exported; `src/data/seedScenarios.test.ts` asserts completeness against `seedScenarios` at test time.
 
 **ECGWaveform RHYTHM_COLOUR** — see R-12.
-
-**`tmp_audit_actions.ts` and `tmp_screenshot_audit.py`** — temporary scripts in project root; not part of build or tests. Review for removal.
-
-**Stale test mocks (3 files)** — pre-existing failures, not regressions:
-1. `LibraryScreen.test.tsx` — mock needs a `sessionLogs` table entry
-2. `ActionsScreen.test.tsx` — tests need `activeInterventions={[]}` and `elapsedSec={0}` props
-3. `StatusDashboard.test.tsx` — `getByText(/Quick Inspection/i)` needs `getByRole('button', { name: /Quick Inspection/i })`
-
-**Elapsed time bonus edge case** — when a scenario has only outcome conditions, elapsed bonus may not apply. Unit test expects 50%, not 53%. Test is authoritative.
-
-**`INTERVENTION_SHORT_LABELS`** — urgency strip label map in `App.tsx`; manually maintained like `CHEAT_LABELS`.
 
 ---
 
