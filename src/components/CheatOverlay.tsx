@@ -3,7 +3,7 @@ import { X, Zap } from 'lucide-react';
 import type { Scenario } from '../types/scenario';
 
 // Full-label map for the overlay — matches INTERVENTION_LABELS in App.tsx
-const CHEAT_LABELS: Record<string, string> = {
+export const CHEAT_LABELS: Record<string, string> = {
   cpr: 'CPR (High-Quality)',
   cpr_30_2: 'CPR 30:2',
   cpr_30_2_child: 'CPR 30:2 (Child)',
@@ -80,6 +80,8 @@ const CHEAT_LABELS: Record<string, string> = {
   back_slaps_infant_5: '5 Back Slaps (Infant)',
   chest_thrusts_infant_5: '5 Chest Thrusts (Infant)',
   position_infant_face_down: 'Position Infant Face-Down',
+  iv_fluid_bolus_anaphylaxis: 'IV Fluid Bolus (Anaphylaxis)',
+  magnesium_sulfate_iv: 'Magnesium Sulfate IV',
 };
 
 function labelFor(id: string): string {

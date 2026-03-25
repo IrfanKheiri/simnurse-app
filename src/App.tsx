@@ -115,7 +115,7 @@ export interface UrgencyItem {
   urgency: UrgencyLevel;
 }
 
-const INTERVENTION_SHORT_LABELS: Record<string, string> = {
+export const INTERVENTION_SHORT_LABELS: Record<string, string> = {
   cpr: 'CPR',
   cpr_30_2: 'CPR',
   cpr_30_2_child: 'CPR',
@@ -161,6 +161,42 @@ const INTERVENTION_SHORT_LABELS: Record<string, string> = {
   left_uterine_displacement: 'LUD',
   perimortem_csection: 'PMCD',
   recovery_position: 'Recov',
+  // BLS / assessment steps
+  call_911: '911',
+  check_responsiveness: 'Respond',
+  check_carotid_pulse: 'Carotid',
+  check_brachial_pulse: 'Brachial',
+  check_glucose: 'Glucose',
+  open_airway_head_tilt_chin_lift: 'Open Air',
+  sternal_rub_stimulation: 'Sternal',
+  lower_to_ground: 'Lower',
+  remove_from_water: 'Remove',
+  // AED steps
+  aed_power_on: 'AED On',
+  aed_attach_pads: 'AED Pads',
+  aed_analyze: 'AED Anlyz',
+  dry_chest_before_aed: 'Dry Chest',
+  // CPR variants
+  resume_cpr_post_shock: 'Rsm CPR',
+  switch_compressor_roles: 'Switch',
+  initial_rescue_breaths_5: 'Rescue Br',
+  // Choking
+  ask_if_choking: 'Ask Choke',
+  back_blows_5: 'Bk Blows',
+  abdominal_thrusts_heimlich_5: 'Heimlich',
+  look_in_mouth_before_breath: 'Chk Mouth',
+  back_slaps_infant_5: 'Bk Slaps',
+  chest_thrusts_infant_5: 'Chest Thr',
+  position_infant_face_down: 'Face Down',
+  // Respiratory / meds
+  albuterol_nebulizer: 'Albuterol',
+  ipratropium_nebulizer: 'Ipratrop',
+  magnesium_sulfate_iv: 'Mag Sulf',
+  iv_fluid_bolus_anaphylaxis: 'IV Fluid',
+  // Cardiology
+  vagal_maneuver: 'Vagal',
+  activate_cath_lab: 'Cath Lab',
+  ct_brain_noncontrast: 'CT Brain',
 };
 
 function getInterventionShortLabel(id: string): string {
