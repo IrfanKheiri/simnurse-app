@@ -41,6 +41,12 @@ async function freezeAnimations(page: Page) {
 async function loadApp(page: Page) {
   await page.addInitScript(() => {
     window.localStorage.setItem('simnurse_onboarding_complete', 'true');
+    window.localStorage.setItem('simnurse_welcome_dismissed', 'true');
+    window.localStorage.setItem(
+      'simnurse_completed_walkthroughs',
+      JSON.stringify(['library-tour', 'patient-tour', 'actions-tour', 'status-tour', 'debrief-tour', 'preview-tour'])
+    );
+    window.localStorage.setItem('simnurse_help_migration_v2', 'true');
     window.localStorage.setItem('simnurse_e2e_freeze_engine', 'true');
   });
   await page.goto('/');
@@ -60,16 +66,47 @@ async function loadApp(page: Page) {
  * Scenario cards are the only buttons with the `rounded-2xl` Tailwind class
  * in LibraryScreen — this distinguishes them from the header help button.
  */
-async function selectFirstScenario(page: Page) {
-  // The Dexie populate hook seeds the DB on first visit — wait up to 15 s
-  // for at least one scenario card to become visible.
-  const scenarioCard = page.locator('[id^="scenario-btn-"]').first();
+async function selectScenario(page: Page, scenarioSelector: string) {
+  const scenarioCard = page.locator(scenarioSelector).first();
   await scenarioCard.waitFor({ state: 'visible', timeout: 15_000 });
   await scenarioCard.click();
+  const beginScenarioButton = page.locator('#begin-scenario-btn');
+  try {
+    await beginScenarioButton.waitFor({ state: 'visible', timeout: 5_000 });
+    await beginScenarioButton.click();
+  } catch {
+    // Older flows may enter the scenario directly without showing the preview modal.
+  }
   // BottomNav renders only when a scenario is active
   await page.waitForSelector('#bottom-navigation-bar', { state: 'visible', timeout: 15_000 });
   await freezeAnimations(page);
   await page.waitForTimeout(300);
+}
+
+async function selectFirstScenario(page: Page) {
+  // The Dexie populate hook seeds the DB on first visit — wait up to 15 s
+  // for at least one scenario card to become visible.
+  await selectScenario(page, '[id^="scenario-btn-"]');
+}
+
+async function confirmActionFromActionsTab(page: Page, actionId: string) {
+  const actionButton = page.locator(`#action-btn-${actionId}`);
+  await actionButton.scrollIntoViewIfNeeded();
+  await actionButton.click();
+
+  const confirmButton = page.getByRole('button', { name: 'Confirm Action' });
+  await confirmButton.waitFor({ state: 'visible', timeout: 5_000 });
+  await confirmButton.click();
+
+  const successContinueButton = page.locator('#correct-action-continue-btn');
+  try {
+    await successContinueButton.waitFor({ state: 'visible', timeout: 2_000 });
+    await successContinueButton.click();
+  } catch {
+    // Some actions may not produce the success widget in this flow.
+  }
+
+  await page.waitForTimeout(200);
 }
 
 /**
@@ -493,6 +530,60 @@ test.describe('Active Scenario Screen — Layout Audit', () => {
     expect(
       overflowing,
       `[${testInfo.project.name}] Actions tab overflow: ${JSON.stringify(overflowing, null, 2)}`
+    ).toHaveLength(0);
+  });
+
+  test('actions tab handles multiple timed statuses on narrow widths without overflow', async ({ page }, testInfo) => {
+    const vp = page.viewportSize()!;
+    if (vp.width >= 768) {
+      test.skip();
+      return;
+    }
+
+    await loadApp(page);
+    await selectScenario(page, '#scenario-btn-adult_vfib_arrest_witnessed');
+
+    await page.click('button:has-text("Actions")');
+    await page.waitForTimeout(200);
+
+    await confirmActionFromActionsTab(page, 'defibrillate');
+    await confirmActionFromActionsTab(page, 'cpr');
+    await freezeAnimations(page);
+
+    await expect(page.getByText(/Available in/i)).toHaveCount(2);
+    await expect(page.getByText('This action was recently used and cannot be repeated yet.')).toHaveCount(2);
+
+    const scrolled = await hasHorizontalScroll(page);
+    expect(
+      scrolled,
+      `[${testInfo.project.name}] Horizontal scroll on timed actions layout`
+    ).toBe(false);
+
+    const overflowing = await page.evaluate(() => {
+      const container = document.querySelector('#actions-list-container');
+      if (!container) return [] as { tag: string; id: string; cls: string; right: number }[];
+
+      const vpWidth = document.documentElement.clientWidth;
+      const results: { tag: string; id: string; cls: string; right: number }[] = [];
+
+      container.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+        if (rect.right > vpWidth + 1) {
+          results.push({
+            tag: el.tagName.toLowerCase(),
+            id: el.id || '',
+            cls: el.className?.toString().slice(0, 80) || '',
+            right: Math.round(rect.right),
+          });
+        }
+      });
+
+      return results;
+    });
+    expect(
+      overflowing,
+      `[${testInfo.project.name}] Timed actions overflow: ${JSON.stringify(overflowing, null, 2)}`
     ).toHaveLength(0);
   });
 

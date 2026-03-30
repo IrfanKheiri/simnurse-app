@@ -695,6 +695,21 @@ function getCooldownRemaining(
     return remaining > 0 ? Math.ceil(remaining) : null;
 }
 
+function formatCooldownTime(seconds: number): string {
+    if (seconds >= 60) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+
+        if (remainingSeconds === 0) {
+            return `${minutes}m`;
+        }
+
+        return `${minutes}m ${remainingSeconds}s`;
+    }
+
+    return `${seconds}s`;
+}
+
 const ActionsScreen: React.FC<ActionsScreenProps> = ({
     applyIntervention,
     initialActionIdToReview,
@@ -876,6 +891,8 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                                 {catActions.map((action: Action, actionIdx: number) => {
                                     const cooldownSec = getCooldownRemaining(action.id, activeInterventions, elapsedSec);
                                     const activeEntry = activeInterventions.find(i => i.id === action.id);
+                                    const isOnCooldown = cooldownSec !== null;
+                                    const cooldownLabel = isOnCooldown ? `Available in ${formatCooldownTime(cooldownSec)}` : null;
                                     const progressPct = cooldownSec !== null && activeEntry?.duration_sec !== undefined
                                         ? ((activeEntry.duration_sec - cooldownSec) / activeEntry.duration_sec) * 100
                                         : null;
@@ -885,30 +902,39 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                                                 id={`action-btn-${action.id}`}
                                                 type="button"
                                                 onClick={() => handleActionClick(action)}
-                                                disabled={cooldownSec !== null}
-                                                className={`relative group flex w-full items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition-all overflow-hidden${cooldownSec !== null ? ' opacity-50 cursor-not-allowed' : ' hover:border-medical-100 hover:shadow-premium active:scale-[0.98]'}`}
+                                                disabled={isOnCooldown}
+                                                className={`relative group flex w-full items-start gap-4 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all${isOnCooldown
+                                                    ? ' cursor-not-allowed border-slate-200 bg-slate-50'
+                                                    : ' border-slate-100 bg-white hover:border-medical-100 hover:shadow-premium active:scale-[0.98]'
+                                                }`}
                                             >
-                                                <div className="flex flex-1 items-center gap-4 overflow-hidden">
+                                                <div className="flex min-w-0 flex-1 items-start gap-4 overflow-hidden">
                                                     <div
-                                                        className="shrink-0 rounded-xl p-3 transition-colors"
+                                                        className="mt-0.5 shrink-0 rounded-xl p-3 transition-colors"
                                                         style={{ backgroundColor: `${action.color}15`, color: action.color }}
                                                     >
                                                         <action.icon size={20} />
                                                     </div>
                                                     {/* R-16: line-clamp-2 instead of truncate; min-h-[56px] prevents layout shift */}
-                                                    <div className="flex flex-col items-start min-h-[56px] justify-center">
+                                                    <div className="flex min-h-[56px] min-w-0 flex-1 flex-col items-start justify-center">
                                                         <span className="line-clamp-2 text-sm font-bold tracking-tight text-slate-700 leading-tight">{action.label}</span>
-                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 transition-colors group-hover:text-medical-500">
-                                                            {suppressed[action.id] ? 'Execute Directly' : 'View Card'}
-                                                        </span>
+                                                        {isOnCooldown ? (
+                                                            <div className="mt-2 flex w-full min-w-0 flex-col items-start gap-1.5">
+                                                                <span className="inline-flex max-w-full flex-wrap items-center rounded-full bg-slate-700 px-2.5 py-1 text-[10px] font-bold leading-none text-white">
+                                                                    {cooldownLabel}
+                                                                </span>
+                                                                <span className="max-w-full text-left text-xs leading-5 text-slate-500">
+                                                                    This action was recently used and cannot be repeated yet.
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 transition-colors group-hover:text-medical-500">
+                                                                {suppressed[action.id] ? 'Execute Directly' : 'View Card'}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <ChevronRight size={18} className="text-slate-300 transition-colors group-hover:text-medical-400" />
-                                                {cooldownSec !== null && (
-                                                    <span className="absolute top-2 right-2 rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-bold text-white leading-none">
-                                                        ⏱ {cooldownSec}s
-                                                    </span>
-                                                )}
+                                                <ChevronRight size={18} className={`mt-0.5 shrink-0 transition-colors ${isOnCooldown ? 'text-slate-300' : 'text-slate-300 group-hover:text-medical-400'}`} />
                                                 {progressPct !== null && (
                                                     <div className="absolute bottom-0 left-0 h-1 rounded-b-2xl bg-medical-400 transition-all" style={{ width: `${progressPct}%` }} />
                                                 )}

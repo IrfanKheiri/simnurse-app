@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ActionsScreen from './ActionsScreen';
 
@@ -16,6 +16,16 @@ vi.mock('./ProcedureGuide', () => ({
     </div>
   ) : null,
 }));
+
+function getActionButton(label: string): HTMLButtonElement {
+  const button = screen.getByText(label).closest('button');
+
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Could not find action button for ${label}`);
+  }
+
+  return button;
+}
 
 describe('ActionsScreen', () => {
   beforeEach(() => {
@@ -91,5 +101,85 @@ describe('ActionsScreen', () => {
     expect(screen.getByTestId('procedure-guide')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Close'));
     expect(screen.queryByTestId('procedure-guide')).not.toBeInTheDocument();
+  });
+
+  it('renders a cooldown pill and supporting sub-line for timed unavailable actions', () => {
+    render(
+      <ActionsScreen
+        applyIntervention={vi.fn()}
+        activeInterventions={[{ id: 'cpr', start_time: 0, duration_sec: 120 }]}
+        elapsedSec={70}
+      />
+    );
+
+    const cprButton = getActionButton('Initiate CPR (High-Quality)');
+
+    expect(cprButton).toBeDisabled();
+    expect(within(cprButton).getByText('Available in 50s')).toBeInTheDocument();
+    expect(
+      within(cprButton).getByText('This action was recently used and cannot be repeated yet.')
+    ).toBeInTheDocument();
+  });
+
+  it('available actions do not render the cooldown treatment', () => {
+    render(
+      <ActionsScreen
+        applyIntervention={vi.fn()}
+        activeInterventions={[{ id: 'cpr', start_time: 0, duration_sec: 120 }]}
+        elapsedSec={70}
+      />
+    );
+
+    const ivButton = getActionButton('Establish IV/IO Access');
+
+    expect(ivButton).toBeEnabled();
+    expect(within(ivButton).queryByText(/Available in/i)).not.toBeInTheDocument();
+    expect(
+      within(ivButton).queryByText('This action was recently used and cannot be repeated yet.')
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps cooldown actions disabled and non-interactive', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ActionsScreen
+        applyIntervention={vi.fn()}
+        activeInterventions={[{ id: 'cpr', start_time: 0, duration_sec: 120 }]}
+        elapsedSec={70}
+      />
+    );
+
+    const cprButton = getActionButton('Initiate CPR (High-Quality)');
+
+    await user.click(cprButton);
+
+    expect(cprButton).toBeDisabled();
+    expect(screen.queryByTestId('procedure-guide')).not.toBeInTheDocument();
+  });
+
+  it('renders mixed action states correctly when multiple timed actions are active', () => {
+    render(
+      <ActionsScreen
+        applyIntervention={vi.fn()}
+        activeInterventions={[
+          { id: 'cpr', start_time: 0, duration_sec: 60 },
+          { id: 'defibrillate', start_time: 0, duration_sec: 10 },
+        ]}
+        elapsedSec={5}
+      />
+    );
+
+    const cprButton = getActionButton('Initiate CPR (High-Quality)');
+    const defibrillateButton = getActionButton('Defibrillate (AED / Manual)');
+    const epiButton = getActionButton('Epinephrine 1mg IV/IO');
+
+    expect(within(cprButton).getByText('Available in 55s')).toBeInTheDocument();
+    expect(within(defibrillateButton).getByText('Available in 5s')).toBeInTheDocument();
+    expect(screen.getAllByText('This action was recently used and cannot be repeated yet.')).toHaveLength(2);
+    expect(cprButton).toBeDisabled();
+    expect(defibrillateButton).toBeDisabled();
+    expect(epiButton).toBeEnabled();
+    expect(within(epiButton).queryByText(/Available in/i)).not.toBeInTheDocument();
   });
 });

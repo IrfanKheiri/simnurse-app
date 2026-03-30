@@ -4,9 +4,9 @@
  * Covers:
  *  - Help button opens HelpPanel
  *  - HelpPanel shows walkthrough CTA
- *  - Walkthrough auto-starts after 2 seconds (library-tour)
- *  - Walkthrough can be advanced with Next button
- *  - Walkthrough can be skipped
+ *  - Walkthrough stays idle until manually started
+ *  - Walkthrough can be manually started and advanced with Next button
+ *  - Manually started walkthrough can be skipped
  *  - Feedback widget appears in HelpPanel tip
  *  - Debrief ? button (skipped — requires full scenario run)
  */
@@ -19,11 +19,11 @@ import { test, expect } from '@playwright/test';
 
 /**
  * Navigate to the library screen with a fresh localStorage so the library
- * walkthrough has NOT been completed — enabling auto-start tests.
+ * walkthrough has NOT been completed.
  * Does NOT pre-complete anything.
  */
 async function loadFreshApp(page: import('@playwright/test').Page) {
-  // Clear all help-related localStorage keys so walkthrough auto-start fires
+  // Clear all help-related localStorage keys so manual-start behavior is tested
   await page.addInitScript(() => {
     window.localStorage.removeItem('simnurse_completed_walkthroughs');
     window.localStorage.removeItem('simnurse_onboarding_complete');
@@ -36,7 +36,7 @@ async function loadFreshApp(page: import('@playwright/test').Page) {
 
 /**
  * Navigate to the library screen with walkthrough already completed so the
- * auto-start does NOT fire — enabling panel / tip tests without tour interference.
+ * panel can be tested in the replay state.
  */
 async function loadAppWithTourCompleted(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
@@ -74,11 +74,9 @@ async function reachDebrief(page: import('@playwright/test').Page) {
   await page.waitForSelector('#finish-case-btn', { state: 'visible', timeout: 5_000 });
   await page.click('#finish-case-btn');
 
-  // Confirm end — prefer stable id, fall back to button text
-  const confirmBtn = page
-    .locator('#end-scenario-confirm-btn')
-    .or(page.getByRole('button', { name: /end.*debrief|end & debrief/i }).first());
-  await confirmBtn.click();
+  // Confirm end using the modal's stable id once it appears.
+  await page.waitForSelector('#end-scenario-confirm-btn', { state: 'visible', timeout: 5_000 });
+  await page.click('#end-scenario-confirm-btn');
 
   // Wait for EvaluationSummary
   await page.waitForSelector('#score-gauge', { state: 'visible', timeout: 10_000 });
@@ -112,24 +110,26 @@ test('HelpPanel shows walkthrough CTA', async ({ page }) => {
   ).toBeVisible({ timeout: 5_000 });
 });
 
-test('walkthrough auto-starts after 2 seconds', async ({ page }) => {
+test('walkthrough does not auto-start after 2 seconds', async ({ page }) => {
   await loadFreshApp(page);
 
-  // Wait 2.5 s for the debounced auto-start
+  // Wait beyond the former debounce window to verify tours stay manual-only
   await page.waitForTimeout(2500);
 
-  // First step of library-tour: "Welcome to SimNurse"
-  await expect(
-    page.locator('text=Welcome to SimNurse')
-  ).toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole('button', { name: /next/i })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: /skip tour/i })).not.toBeVisible();
 });
 
-test('walkthrough can be advanced with Next button', async ({ page }) => {
+test('walkthrough can be manually started and advanced with Next button', async ({ page }) => {
   await loadFreshApp(page);
 
-  // Wait for auto-start
-  await page.waitForTimeout(2500);
-  await page.waitForSelector('text=Welcome to SimNurse', { state: 'visible', timeout: 3_000 });
+  await page.click('#help-btn');
+  await page
+    .getByRole('button', { name: /start walkthrough/i })
+    .or(page.getByRole('button', { name: /replay walkthrough/i }))
+    .click();
+
+  await expect(page.locator('h3', { hasText: 'Welcome to SimNurse' })).toBeVisible({ timeout: 3_000 });
 
   // Click "Next" to advance to step 2
   await page.getByRole('button', { name: /next/i }).click();
@@ -140,12 +140,15 @@ test('walkthrough can be advanced with Next button', async ({ page }) => {
   ).toBeVisible({ timeout: 3_000 });
 });
 
-test('walkthrough can be skipped', async ({ page }) => {
+test('manually started walkthrough can be skipped', async ({ page }) => {
   await loadFreshApp(page);
 
-  // Wait for auto-start
-  await page.waitForTimeout(2500);
-  await page.waitForSelector('text=Welcome to SimNurse', { state: 'visible', timeout: 3_000 });
+  await page.click('#help-btn');
+  await page
+    .getByRole('button', { name: /start walkthrough/i })
+    .or(page.getByRole('button', { name: /replay walkthrough/i }))
+    .click();
+  await expect(page.locator('h3', { hasText: 'Welcome to SimNurse' })).toBeVisible({ timeout: 3_000 });
 
   // Click "Skip Tour" (or variant label)
   await page
@@ -154,7 +157,8 @@ test('walkthrough can be skipped', async ({ page }) => {
     .click();
 
   // Tour tooltip should disappear
-  await expect(page.locator('text=Welcome to SimNurse')).not.toBeVisible({ timeout: 3_000 });
+  await expect(page.locator('h3', { hasText: 'Welcome to SimNurse' })).not.toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole('button', { name: /next/i })).not.toBeVisible({ timeout: 3_000 });
 });
 
 test('feedback widget appears in HelpPanel tip', async ({ page }) => {
@@ -169,25 +173,15 @@ test('feedback widget appears in HelpPanel tip', async ({ page }) => {
     // Panel may not have an id — fall back to waiting for content
   });
 
-  // Find and click the first accordion/tip row to expand it.
-  // Tips are rendered as buttons or disclosure elements.
-  const firstTip = page
-    .getByRole('button', { name: /reading difficulty badges/i })
-    .or(page.locator('[data-tip-id]').first())
-    .or(page.locator('button[aria-expanded]').first());
+  // Find and click the first visible context-tip row.
+  const firstTip = page.getByRole('button', { name: /reading scenario cards/i });
 
   await firstTip.click();
 
   // After expanding, thumbs-up and thumbs-down buttons must be visible
-  await expect(
-    page.getByRole('button', { name: /thumbs.?up|helpful|👍/i })
-      .or(page.locator('button[aria-label*="up" i]').first())
-  ).toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole('button', { name: /thumbs.?up|helpful|👍/i }).first()).toBeVisible({ timeout: 3_000 });
 
-  await expect(
-    page.getByRole('button', { name: /thumbs.?down|not helpful|👎/i })
-      .or(page.locator('button[aria-label*="down" i]').first())
-  ).toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole('button', { name: /thumbs.?down|not helpful|👎/i }).first()).toBeVisible({ timeout: 3_000 });
 });
 
 test('debrief ? button opens HelpPanel', async ({ page }) => {
@@ -202,7 +196,5 @@ test('debrief ? button opens HelpPanel', async ({ page }) => {
   await helpBtn.click();
 
   // HelpPanel should show debrief context label
-  await expect(
-    page.locator('text=Debrief Help').or(page.locator('text=Debrief'))
-  ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole('heading', { name: 'Debrief Help' })).toBeVisible({ timeout: 5_000 });
 });

@@ -102,7 +102,7 @@ npm run test:e2e:update-snapshots
 
 ## Runtime Data Flow
 
-1. Dexie seeds scenarios from `src/data/seedScenarios.ts`.
+1. Dexie seeds scenarios from `src/data/seedScenarios.ts`, the canonical source of truth for protocol sequencing and debrief rationale authoring.
 2. The learner selects a scenario in `LibraryScreen`.
 3. `App.tsx` starts `useScenarioEngine` with a cloned scenario definition.
 4. The engine emits typed lifecycle events.
@@ -112,10 +112,13 @@ npm run test:e2e:update-snapshots
 ## Where To Change Common Behavior
 
 - Add or edit a scenario: `src/data/seedScenarios.ts`
+- Validate canonical scenario authoring invariants: `src/data/seedScenarios.test.ts`
 - Change the simulation engine: `src/hooks/useScenarioEngine.ts`
 - Change debrief logic: `src/App.tsx` and `src/components/EvaluationSummary.tsx`
 - Change persistence behavior: `src/lib/db.ts`
 - Update layout or navigation chrome: `src/components/Header.tsx` and `src/components/BottomNav.tsx`
+
+Protocol sequencing and rationale ownership stay in `src/data/seedScenarios.ts`. Do not create or maintain duplicate scenario-reference markdown; tests should assert the canonical scenario data directly.
 
 ## Legacy Artifact
 

@@ -1,6 +1,16 @@
-import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle, AlertTriangle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen, Lightbulb, HelpCircle } from 'lucide-react';
-import { PERFORMANCE_TIERS } from '../lib/scoreThresholds';
+import React, { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CheckCircle2, AlertCircle, AlertTriangle, ArrowLeft, RefreshCcw, ExternalLink, Clock, Info, Trophy, Target, Star, Activity, BookOpen, Lightbulb, HelpCircle, type LucideIcon } from 'lucide-react';
+import {
+    getPerformanceTier,
+    PERFORMANCE_TIER_HELP_INTRO,
+    PERFORMANCE_TIER_HELP_INTERPRETATION,
+    PERFORMANCE_TIER_HELP_MASTERY_HINT,
+    PERFORMANCE_TIERS_HELP_STRING,
+    type PerformanceTierLabel,
+} from '../lib/scoreThresholds';
+import { isInlineHelpSuppressed, mergeInlineHelpBlockers, type InlineHelpBlockers } from '../lib/inlineHelp';
+import { useInlineHelpPopover } from '../hooks/useInlineHelpPopover';
 import ProcedureGuide from './ProcedureGuide';
 import { ACTIONS } from './ActionsScreen';
 import type { Action } from './ActionsScreen';
@@ -34,27 +44,97 @@ interface EvaluationSummaryProps {
     onHelpClick?: () => void;
     /** When true, session logs are still being fetched — show spinner in gauge */
     actionsLoading?: boolean;
+    /** Higher-priority overlays that should suppress local inline help. */
+    inlineHelpBlockers?: InlineHelpBlockers;
 }
 
-const ScoreGauge: React.FC<{ score: number; loading?: boolean }> = ({ score, loading }) => {
+const TIER_UI = {
+    Expert: { color: '#6366f1', icon: Trophy },
+    Proficient: { color: '#10b981', icon: Star },
+    Competent: { color: '#f59e0b', icon: Target },
+    Developing: { color: '#f97316', icon: Info },
+    Novice: { color: '#ef4444', icon: AlertCircle },
+} satisfies Record<PerformanceTierLabel, { color: string; icon: LucideIcon }>;
+
+const TIER_HELP_PANEL_POSITION = {
+    estimatedHeight: 236,
+    maxWidth: 288,
+    offset: 12,
+    viewportMargin: 16,
+} as const;
+
+const PerformanceTierHelpToggle: React.FC<{
+    currentTierLabel: PerformanceTierLabel;
+    currentTierSummary: string;
+    accentColor: string;
+    suppressed?: boolean;
+}> = ({ currentTierLabel, currentTierSummary, accentColor, suppressed = false }) => {
+    const { isOpen, panelId, panelRef, panelStyle, toggle, triggerRef } = useInlineHelpPopover({
+        suppressed,
+        ...TIER_HELP_PANEL_POSITION,
+    });
+
+    if (suppressed) {
+        return null;
+    }
+
+    return (
+        <div className="relative">
+            <button
+                ref={triggerRef}
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                aria-describedby={isOpen ? panelId : undefined}
+                onClick={toggle}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-600 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-2"
+            >
+                <HelpCircle size={14} />
+                <span>Tier Help</span>
+            </button>
+
+            {isOpen && panelStyle && createPortal(
+                <div
+                    ref={panelRef}
+                    id={panelId}
+                    role="note"
+                    className="fixed z-[60] rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-xl"
+                    style={panelStyle}
+                >
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        Performance Tier Help
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        {PERFORMANCE_TIER_HELP_INTRO}
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        {PERFORMANCE_TIER_HELP_INTERPRETATION}
+                    </p>
+                    <p className="mt-3 text-xs font-bold leading-relaxed" style={{ color: accentColor }}>
+                        {currentTierLabel}: {currentTierSummary}
+                    </p>
+                    <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                        Thresholds: {PERFORMANCE_TIERS_HELP_STRING}.
+                    </p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                        {PERFORMANCE_TIER_HELP_MASTERY_HINT}
+                    </p>
+                </div>,
+                document.body,
+            )}
+        </div>
+    );
+};
+
+const ScoreGauge: React.FC<{ score: number; loading?: boolean; suppressTierHelp?: boolean }> = ({ score, loading, suppressTierHelp = false }) => {
     const radius = 50;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (score / 100) * circumference;
 
-    const TIER_UI = {
-        Expert:     { color: '#6366f1', icon: Trophy },
-        Proficient: { color: '#10b981', icon: Star },
-        Competent:  { color: '#f59e0b', icon: Target },
-        Developing: { color: '#f97316', icon: Info },
-        Novice:     { color: '#ef4444', icon: AlertCircle },
-    } as const;
-
-    const getPerformanceTier = () => {
-        const match = PERFORMANCE_TIERS.find(t => score >= t.min) ?? PERFORMANCE_TIERS[PERFORMANCE_TIERS.length - 1];
-        return { label: match.label, ...TIER_UI[match.label] };
-    };
-
-    const tier = getPerformanceTier();
+    const tier = useMemo(() => {
+        const match = getPerformanceTier(score);
+        return { ...match, ...TIER_UI[match.label] };
+    }, [score]);
 
     if (loading) {
         return (
@@ -94,14 +174,22 @@ const ScoreGauge: React.FC<{ score: number; loading?: boolean }> = ({ score, loa
             </div>
 
             <div className="mt-4 flex flex-col items-center">
-                <div
-                    className="flex items-center gap-2 px-4 py-2 rounded-2xl shadow-sm border border-slate-100 mb-2"
-                    style={{ backgroundColor: `${tier.color}10`, borderColor: `${tier.color}20` }}
-                >
-                    <tier.icon size={16} style={{ color: tier.color }} />
-                    <span className="text-sm font-black uppercase tracking-widest" style={{ color: tier.color }}>
-                        {tier.label}
-                    </span>
+                <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
+                    <div
+                        className="flex items-center gap-2 rounded-2xl border border-slate-100 px-4 py-2 shadow-sm"
+                        style={{ backgroundColor: `${tier.color}10`, borderColor: `${tier.color}20` }}
+                    >
+                        <tier.icon size={16} style={{ color: tier.color }} />
+                        <span className="text-sm font-black uppercase tracking-widest" style={{ color: tier.color }}>
+                            {tier.label}
+                        </span>
+                    </div>
+                    <PerformanceTierHelpToggle
+                        currentTierLabel={tier.label}
+                        currentTierSummary={tier.summary}
+                        accentColor={tier.color}
+                        suppressed={suppressTierHelp}
+                    />
                 </div>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Clinical Performance Tier</p>
             </div>
@@ -251,8 +339,13 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
     onReviewProcedure: _onReviewProcedure,
     onHelpClick,
     actionsLoading,
+    inlineHelpBlockers = {},
 }) => {
     const [reviewAction, setReviewAction] = useState<Action | null>(null);
+    const suppressTierHelp = useMemo(() => isInlineHelpSuppressed(mergeInlineHelpBlockers(
+        inlineHelpBlockers,
+        { procedureGuide: reviewAction !== null },
+    )), [inlineHelpBlockers, reviewAction]);
 
     // R-4: Cleanup reviewAction on unmount so ProcedureGuide portal closes
     React.useEffect(() => {
@@ -302,7 +395,7 @@ const EvaluationSummary: React.FC<EvaluationSummaryProps> = ({
                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-slate-900 pointer-events-none">
                         <Trophy size={160} strokeWidth={1} />
                     </div>
-                    <ScoreGauge score={score} loading={actionsLoading} />
+                    <ScoreGauge score={score} loading={actionsLoading} suppressTierHelp={suppressTierHelp} />
                 </section>
 
                 {/* P3-A (ISSUE-08): Scenario-specific outcome narrative */}

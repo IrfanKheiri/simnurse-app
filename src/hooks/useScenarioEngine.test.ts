@@ -2,6 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScenarioEngine } from './useScenarioEngine';
 import type { EngineEvent, Scenario } from '../types/scenario';
+import { seedScenarios } from '../data/seedScenarios';
 
 const mockScenario: Scenario = {
   scenario_id: 'test_engine',
@@ -169,5 +170,44 @@ describe('useScenarioEngine', () => {
     });
 
     expect(result.current.sequenceIndex).toBe(1);
+  });
+
+  it('does not complete a shockable arrest before the terminal teaching step', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const scenario = seedScenarios.find((item) => item.scenario_id === 'adult_vfib_arrest_witnessed');
+    expect(scenario).toBeDefined();
+
+    const onEvent = vi.fn<(event: EngineEvent) => void>();
+    const { result } = renderHook(() => useScenarioEngine(scenario!, onEvent));
+
+    act(() => {
+      result.current.applyIntervention('defibrillate');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(33_000);
+    });
+
+    expect(result.current.status).toBe('running');
+    expect(onEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'completion', outcome: 'success' }),
+    );
+
+    act(() => {
+      result.current.applyIntervention('cpr');
+      result.current.applyIntervention('establish_iv');
+      result.current.applyIntervention('epinephrine_1mg');
+      result.current.applyIntervention('amiodarone_300mg');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(33_000);
+    });
+
+    expect(result.current.status).toBe('success');
+    expect(onEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'completion', outcome: 'success' }),
+    );
   });
 });

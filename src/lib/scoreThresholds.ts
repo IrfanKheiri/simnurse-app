@@ -1,18 +1,57 @@
 /**
- * Single source of truth for performance tier thresholds.
- * Used by EvaluationSummary (ScoreGauge logic) and helpContent (tip text).
+ * Single source of truth for debrief performance tiers and their help copy.
  * Ordered highest to lowest — find() returns the first match.
  */
 export const PERFORMANCE_TIERS = [
-  { min: 95, label: 'Expert' },
-  { min: 88, label: 'Proficient' },
-  { min: 80, label: 'Competent' },
-  { min: 60, label: 'Developing' },
-  { min: 0,  label: 'Novice' },
+  {
+    min: 95,
+    label: 'Expert',
+    rangeLabel: '≥95%',
+    summary: 'Nearly all interventions were correct and in sequence.',
+  },
+  {
+    min: 88,
+    label: 'Proficient',
+    rangeLabel: '≥88%',
+    summary: 'Most interventions were correct, with only minor accuracy or sequencing gaps.',
+  },
+  {
+    min: 80,
+    label: 'Competent',
+    rangeLabel: '≥80%',
+    summary: 'Core actions were often correct, but noticeable accuracy or sequencing gaps affected the run.',
+  },
+  {
+    min: 60,
+    label: 'Developing',
+    rangeLabel: '≥60%',
+    summary: 'Some actions were correct, but repeated mistakes or missed steps are still limiting consistency.',
+  },
+  {
+    min: 0,
+    label: 'Novice',
+    rangeLabel: '<60%',
+    summary: 'Frequent missed, incorrect, or out-of-sequence interventions reduced overall accuracy.',
+  },
 ] as const;
 
-export type PerformanceTierLabel = typeof PERFORMANCE_TIERS[number]['label'];
+export type PerformanceTier = typeof PERFORMANCE_TIERS[number];
+export type PerformanceTierLabel = PerformanceTier['label'];
+
+export const PERFORMANCE_TIER_HELP_INTRO =
+  'Your tier reflects how many interventions were correct and in sequence out of all recorded interventions.';
+
+export const PERFORMANCE_TIER_HELP_INTERPRETATION =
+  'Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone.';
+
+export const PERFORMANCE_TIER_HELP_MASTERY_HINT =
+  'Aim for ≥88% (Proficient) before moving to the next difficulty tier.';
 
 /** Pre-built string for use in help text. */
-export const PERFORMANCE_TIERS_HELP_STRING =
-  'Expert ≥95%, Proficient ≥88%, Competent ≥80%, Developing ≥60%, Novice <60%';
+export const PERFORMANCE_TIERS_HELP_STRING = PERFORMANCE_TIERS
+  .map(({ label, rangeLabel }) => `${label} ${rangeLabel}`)
+  .join(', ');
+
+export function getPerformanceTier(score: number): PerformanceTier {
+  return PERFORMANCE_TIERS.find((tier) => score >= tier.min) ?? PERFORMANCE_TIERS[PERFORMANCE_TIERS.length - 1];
+}

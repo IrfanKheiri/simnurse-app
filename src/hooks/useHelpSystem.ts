@@ -46,7 +46,6 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
   const panelOpenRef = useRef(panelOpen);
   const walkthroughActiveRef = useRef(walkthroughActive);
   const walkthroughIdRef = useRef(walkthroughId);
-  const skippedThisSessionRef = useRef<Set<string>>(new Set());
 
   // content is derived synchronously — no state needed
   const content = HELP_CONTENT[context];
@@ -138,14 +137,9 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
   }, [walkthroughId]);
 
   const skipWalkthrough = useCallback(() => {
-    // "Not now" — does NOT write to localStorage (not the same as complete)
-    // Records to in-memory session ref so auto-start does not re-fire for this tour
-    // in the same session. On page refresh the skip resets (intentional).
+    // "Skip" — exits the current walkthrough without recording completion.
     setWalkthroughActive(false);
     setWalkthroughStepIndex(0);
-    if (walkthroughIdRef.current !== null) {
-      skippedThisSessionRef.current.add(walkthroughIdRef.current);
-    }
   }, []);
 
   const resetAll = useCallback(async () => {
@@ -262,23 +256,6 @@ export function useHelpSystem(context: AppContext): HelpSystemState & HelpSystem
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [openPanel, closePanel]);
-
-  // Auto-start debounce: start walkthrough 2s after context change if not completed
-  useEffect(() => {
-    const id = HELP_CONTENT[context].walkthroughId;
-    if (wasWalkthroughCompleted(id)) return;
-    if (skippedThisSessionRef.current.has(id)) return;  // suppressed for this session
-
-    const timer = setTimeout(() => {
-      // Guard: only start if panel is not open at fire time (read ref, not stale closure)
-      if (!panelOpenRef.current) {
-        startWalkthrough(id);
-      }
-    }, 2000);
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context]);
 
   return {
     // State

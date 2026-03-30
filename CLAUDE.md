@@ -4,7 +4,7 @@
 
 SimNurse is a fully client-side SPA for training nursing students, paramedics, and clinical learners in emergency resuscitation protocols. The learner manages a deteriorating simulated patient, applying interventions in the correct sequence before the patient reaches the failure threshold. After each session, a scored debrief shows what was done vs. what the protocol required.
 
-Three competency levels: BLS (Basic Life Support), ACLS (Advanced Cardiac Life Support), PALS (Pediatric Advanced Life Support). 26 scenarios from beginner bystander AED to advanced obstetric cardiac arrest. Every intervention includes an AHA-cited rationale in the debrief.
+Three competency levels: BLS (Basic Life Support), ACLS (Advanced Cardiac Life Support), PALS (Pediatric Advanced Life Support). The seeded scenario catalogue in `src/data/seedScenarios.ts` spans beginner bystander AED through advanced obstetric cardiac arrest. `src/data/seedScenarios.ts` is the canonical source of truth for protocol sequencing and rationale authoring; duplicate scenario-reference markdown must not be maintained. Every intervention includes an AHA-cited rationale in the debrief.
 
 No backend. No API calls. Fully offline after first load. All data in IndexedDB (Dexie) and localStorage. Production path: `/simnurse-app/`.
 
@@ -50,6 +50,7 @@ Non-obvious facts that cause bugs before you've read the source:
 - **Infant lone-rescuer CPR**: `call_911` is LAST in expected sequence (AHA 2020 — CPR before EMS activation for lone rescuers). Two-rescuer: `call_911` is SECOND. Do not reorder these.
 - **Drowning protocol**: ventilation-first — `initial_rescue_breaths_5` (5 breaths) BEFORE compressions. Opposite of standard cardiac arrest sequence.
 - **Heimlich is a DISTRACTOR** in `bls_infant_choking` (`success_chance: 0.0`) — teaches that Heimlich is contraindicated in infants. Do not "fix" the 0% success rate.
+- **Protocol source of truth**: author `expected_sequence`, intervention rationale, and other protocol-sequencing rules only in `src/data/seedScenarios.ts`. Validate source-of-truth invariants directly in `src/data/seedScenarios.test.ts`, and do not create or maintain duplicate scenario-reference markdown.
 - **`suppressedProcedures` localStorage key must NOT be cleared on scenario start** (ISSUE-05) — persists the user's ProcedureGuide suppression preferences across scenarios. See the explicit comment in `startScenarioRun()`.
 - **WalkthroughEngine spotlight is fully interactive**; backdrop tap does NOT dismiss — only "Skip Tour" button or Escape key.
 

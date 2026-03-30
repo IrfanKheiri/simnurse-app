@@ -57,13 +57,14 @@ All types defined in `src/types/scenario.ts` — read that file as the authorita
 
 ## 3. Clinical Anomalies
 
-Non-obvious protocol rules in `src/data/seedScenarios.ts`. All other scenario details are derivable from that file directly.
+Non-obvious protocol rules live in `src/data/seedScenarios.ts`, which is the canonical source of truth for protocol sequencing and debrief rationale authoring. All other scenario details should be derived from that file directly. Do not create or maintain duplicate scenario-reference markdown for protocol steps or rationales.
 
 - **`bls_infant_cardiac_arrest`** — `call_911` is LAST (AHA 2020 lone-rescuer: CPR before EMS). Do not reorder.
 - **`bls_infant_two_rescuer_cpr`** — `call_911` is SECOND (two rescuers allow immediate EMS). Different from lone-rescuer.
 - **`bls_drowning_submersion`** — `initial_rescue_breaths_5` comes BEFORE compressions (ventilation-first). Also requires `dry_chest_before_aed` before defibrillation.
 - **`bls_infant_choking`** — `abdominal_thrusts_heimlich_5` is a **distractor** with `priority: 1, success_chance: 0.0`. Teaches Heimlich contraindication in infants. Do not fix the 0% success rate.
-- **`pregnant_vfib_arrest`** — adds `left_uterine_displacement` (priority 200) and `perimortem_csection` (priority 150, 70% success). Scheduled message at T+300s per AHA/ACOG.
+- **Shockable-arrest teaching flows** — if `expected_sequence` continues after a shock/AED step, do NOT put full ROSC (`pulsePresent: true` + `rhythm: 'Sinus'`) on that early step. Put terminal ROSC on the intended final teaching step instead, usually antiarrhythmic administration or `resume_cpr_post_shock`.
+- **`pregnant_vfib_arrest`** — `left_uterine_displacement` is part of the base sequence, but `perimortem_csection` is a conditional rescue intervention after the 5-minute no-ROSC window, not an always-required expected step. Scheduled reminder still fires at T+300s per AHA/ACOG.
 - **`acs_stemi`** — scheduled deterioration to VFib at T+300s if treatment sequence not started. All medications have 100% success chance.
 - **Expected sequence arrays** — intervention IDs must exactly match keys in the `interventions` record. Typos silently break sequence evaluation.
 
@@ -240,6 +241,7 @@ All icons from `lucide-react` only. Do not add other icon libraries.
 - Co-located with source in `src/`
 - Use `renderHook` for hook isolation; wrap mutations in `act()`
 - Fake timers: `vi.useFakeTimers()` before test; `vi.useRealTimers()` in `afterEach`
+- `src/data/seedScenarios.test.ts` validates canonical seed-scenario invariants directly, including label-map completeness and the shockable-arrest authoring rule that terminal ROSC stays on the final teaching step
 - Pre-seed localStorage before rendering to suppress walkthrough auto-start:
   ```typescript
   localStorage.setItem('simnurse_completed_walkthroughs',
@@ -270,7 +272,7 @@ npm run test:e2e:ipad            # iPad Pro emulation
 npm run test:e2e:breakpoints     # All 5 viewport widths (320–1920px)
 ```
 
-All 8 test files pass (65 tests). No known pre-existing failures.
+Test inventory changes over time. Treat `src/**/*.test.{ts,tsx}` and `tests/**/*.spec.ts` as the source of truth, and rerun the relevant suite locally before claiming current pass status.
 
 ---
 
@@ -279,8 +281,12 @@ All 8 test files pass (65 tests). No known pre-existing failures.
 ### Adding a New Scenario
 1. Add scenario object to `src/data/seedScenarios.ts` (follow DSL pattern; intervention IDs must be unique within scenario)
 2. If new intervention IDs appear in urgency strips or cheat overlay, update `INTERVENTION_SHORT_LABELS` in `App.tsx` and `CHEAT_LABELS` in `CheatOverlay.tsx`
-3. Run `npm run dev` — Dexie auto-reseeds in dev
-4. If adding new `Scenario` fields: increment Dexie version in `src/lib/db.ts` + upgrade callback
+3. Update `src/data/seedScenarios.test.ts` when source-of-truth invariants change so tests validate the canonical scenario data directly
+4. Do not create or update duplicate scenario-reference markdown for protocol sequencing or rationale; keep that authoring in `src/data/seedScenarios.ts` only
+5. Run `npm run dev` — Dexie auto-reseeds in dev
+6. If adding new `Scenario` fields: increment Dexie version in `src/lib/db.ts` + upgrade callback
+7. For teaching flows with post-shock steps, keep full ROSC off early shock/AED actions unless the scenario is intentionally designed to end there
+8. If the change affects scenario counts or other summary facts, refresh any count-based wording in the live `CLAUDE` docs
 
 ### Adding a New Component
 1. Create file in `src/components/` using PascalCase
@@ -297,5 +303,6 @@ All 8 test files pass (65 tests). No known pre-existing failures.
 2. New DSL fields go in `src/types/scenario.ts` first
 3. If field needs persistence: add to `seedScenarios.ts` + bump Dexie schema version
 4. Engine logic changes go in reducer in `useScenarioEngine.ts`
-5. Run `npm run test` — 6 unit tests cover core scenarios
+5. Run `npm run test` and any targeted follow-up tests needed for the changed behavior
 6. Scoring changes: `npx vitest run src/lib/scenarioProgress.test.ts`
+7. If the change materially affects test coverage or suite shape, refresh any count-based wording in the live `CLAUDE` docs

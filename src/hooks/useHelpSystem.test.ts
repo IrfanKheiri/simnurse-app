@@ -30,9 +30,6 @@ function markCompleted(id: string) {
 describe('walkthrough navigation', () => {
   beforeEach(() => {
     localStorage.clear();
-    // Prevent auto-start from interfering with manual navigation tests
-    // by pre-marking the tour as completed before each test in this group.
-    markCompleted('library-tour');
   });
 
   it('startWalkthrough sets walkthroughActive true and stepIndex 0', () => {
@@ -210,7 +207,6 @@ describe('walkthrough navigation', () => {
 describe('panel mutual exclusion', () => {
   beforeEach(() => {
     localStorage.clear();
-    markCompleted('library-tour');
   });
 
   it('openPanel sets panelOpen true and pauses walkthrough', () => {
@@ -295,7 +291,6 @@ describe('panel mutual exclusion', () => {
 describe('feedback', () => {
   beforeEach(() => {
     localStorage.clear();
-    markCompleted('library-tour');
   });
 
   it('submitFeedback appends entry to localStorage', () => {
@@ -366,8 +361,6 @@ describe('feedback', () => {
 describe('context', () => {
   beforeEach(() => {
     localStorage.clear();
-    markCompleted('library-tour');
-    markCompleted('patient-tour');
   });
 
   it('wasWalkthroughCompleted returns false initially', () => {
@@ -410,10 +403,10 @@ describe('context', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Auto-Start (fake timers)
+// Manual startup only (fake timers)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('auto-start (fake timers)', () => {
+describe('manual startup only (fake timers)', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
@@ -424,30 +417,32 @@ describe('auto-start (fake timers)', () => {
     vi.useRealTimers();
   });
 
-  it('auto-start fires after 2000ms on first context visit', () => {
-    // localStorage is clear — library-tour NOT completed
+  it('does not auto-start after 2000ms on first context visit', () => {
     const { result } = renderLibraryHook();
 
     expect(result.current.walkthroughActive).toBe(false);
 
     act(() => {
       vi.advanceTimersByTime(2100);
+    });
+
+    expect(result.current.walkthroughActive).toBe(false);
+  });
+
+  it('still allows manual start after the debounce window passes', () => {
+    const { result } = renderLibraryHook();
+
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+
+    act(() => {
+      result.current.startWalkthrough();
     });
 
     expect(result.current.walkthroughActive).toBe(true);
-  });
-
-  it('auto-start does NOT fire if walkthrough already completed', () => {
-    // Mark completed BEFORE rendering
-    markCompleted('library-tour');
-
-    const { result } = renderLibraryHook();
-
-    act(() => {
-      vi.advanceTimersByTime(2100);
-    });
-
-    expect(result.current.walkthroughActive).toBe(false);
+    expect(result.current.walkthroughId).toBe('library-tour');
+    expect(result.current.walkthroughStepIndex).toBe(0);
   });
 });
 
@@ -458,8 +453,6 @@ describe('auto-start (fake timers)', () => {
 describe('localStorage migration', () => {
   beforeEach(() => {
     localStorage.clear();
-    // Prevent auto-start from interfering
-    markCompleted('library-tour');
   });
 
   it('migrates simnurse_onboarding_complete to new key on mount', () => {

@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Activity, Wind, AlertCircle, Zap, AlertTriangle } from 'lucide-react';
+import { LogOut, Activity, Wind, AlertCircle, Zap, AlertTriangle, HelpCircle } from 'lucide-react';
 import type { PatientState, ActiveIntervention } from '../types/scenario';
+import { getInterventionBadgeLabel, getInterventionDisplayLabel } from '../lib/interventionLabels';
+import { isInlineHelpSuppressed, type InlineHelpBlockers } from '../lib/inlineHelp';
+import { useInlineHelpPopover } from '../hooks/useInlineHelpPopover';
 
 interface PatientViewProps {
     onFinish: () => void;
@@ -9,6 +12,8 @@ interface PatientViewProps {
     activeInterventions: ActiveIntervention[];
     /** R-2: Whether vitals have been unlocked via StatusDashboard inspection */
     unlocked?: boolean;
+    /** Higher-priority overlays that should suppress local inline help. */
+    inlineHelpBlockers?: InlineHelpBlockers;
 }
 
 /** FIX (H11): Generate contextual clinical narrative from live vitals */
@@ -112,6 +117,81 @@ function buildClinicalNote(vitals: PatientState | null, unlocked: boolean): stri
 }
 
 const patientIllustrationSrc = `${import.meta.env.BASE_URL}patient-illustration.png`;
+const MAX_VISIBLE_INTERVENTION_BADGES = 3;
+const INTERVENTION_HELP_PANEL_POSITION = {
+    estimatedHeight: 220,
+    maxWidth: 320,
+    offset: 12,
+    viewportMargin: 16,
+} as const;
+
+const InterventionHelpToggle: React.FC<{
+    interventionLabels: string[];
+    suppressed?: boolean;
+}> = ({ interventionLabels, suppressed = false }) => {
+    const hasInterventions = interventionLabels.length > 0;
+    const { isOpen, panelId, panelRef, panelStyle, toggle, triggerRef } = useInlineHelpPopover({
+        suppressed,
+        ...INTERVENTION_HELP_PANEL_POSITION,
+    });
+
+    if (suppressed) {
+        return null;
+    }
+
+    return (
+        <>
+            <button
+                ref={triggerRef}
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                aria-describedby={isOpen ? panelId : undefined}
+                aria-label="Intervention help"
+                title="Explain intervention section"
+                onClick={toggle}
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-500 focus-visible:ring-offset-2"
+            >
+                <HelpCircle size={14} />
+                <span>Help</span>
+            </button>
+
+            {isOpen && panelStyle && createPortal(
+                <div
+                    ref={panelRef}
+                    id={panelId}
+                    role="note"
+                    className="fixed z-[60] rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-xl"
+                    style={panelStyle}
+                >
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        Active Intervention Help
+                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        This section tracks the interventions currently affecting the patient. When more than three are active, the section keeps the remainder in the +N more summary pill.
+                    </p>
+                    {hasInterventions ? (
+                        <>
+                            <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                                Current interventions
+                            </p>
+                            <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600" aria-label="Current intervention help details">
+                                {interventionLabels.map((label) => (
+                                    <li key={label}>• {label}</li>
+                                ))}
+                            </ul>
+                        </>
+                    ) : (
+                        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+                            No active interventions are being tracked right now.
+                        </p>
+                    )}
+                </div>,
+                document.body,
+            )}
+        </>
+    );
+};
 
 /** FIX (L19): Confirmation dialog before ending the scenario */
 /** FIX (P1-F): Focus the End & Debrief button when the dialog mounts (matches user intent) */
@@ -159,20 +239,29 @@ const EndConfirmDialog: React.FC<{ onConfirm: () => void; onCancel: () => void }
     );
 };
 
-const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInterventions, unlocked = false }) => {
+const PatientView: React.FC<PatientViewProps> = ({
+    onFinish,
+    vitals,
+    activeInterventions,
+    unlocked = false,
+    inlineHelpBlockers = {},
+}) => {
     const [showEndConfirm, setShowEndConfirm] = useState(false);
 
     const o2Saturation = vitals?.spo2 ?? 100;
     const rhythm = vitals?.rhythm ?? 'Unknown';
     const isCyanotic = o2Saturation < 90;
     const isArrest = vitals ? !vitals.pulsePresent : false;
+    const interventionCount = activeInterventions.length;
+    const hasActiveInterventions = interventionCount > 0;
+    const interventionHelpLabels = activeInterventions.map(({ id }) => getInterventionDisplayLabel(id));
+    const suppressInterventionHelp = isInlineHelpSuppressed(inlineHelpBlockers) || showEndConfirm;
 
     const clinicalNote = buildClinicalNote(vitals, unlocked);
 
     // FIX (P1-C): Cap displayed badges at 3, show +N more pill for overflow
-    const MAX_BADGES = 3;
-    const visibleInterventions = activeInterventions.slice(0, MAX_BADGES);
-    const overflowCount = activeInterventions.length - MAX_BADGES;
+    const visibleInterventions = activeInterventions.slice(0, MAX_VISIBLE_INTERVENTION_BADGES);
+    const overflowCount = Math.max(0, interventionCount - MAX_VISIBLE_INTERVENTION_BADGES);
 
     return (
         // FIX (P1-G): Add aria-label to the section
@@ -213,22 +302,79 @@ const PatientView: React.FC<PatientViewProps> = ({ onFinish, vitals, activeInter
                     </button>
                 </div>
 
-                {/* FIX (P1-C): In-flow interventions row — horizontal flex-wrap, capped at 3 + overflow */}
-                {activeInterventions.length > 0 && (
-                    <div id="active-interventions-list" className="flex flex-wrap gap-2 mt-2">
-                        {visibleInterventions.map(action => (
-                            <div key={action.id} className="flex items-center gap-2 bg-indigo-600/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full shadow-md animate-in fade-in slide-in-from-left-2">
-                                <Zap size={14} className="animate-pulse" />
-                                <span className="text-xs font-bold tracking-wide">{action.id.replace(/_/g, ' ').toUpperCase()}</span>
-                            </div>
-                        ))}
-                        {overflowCount > 0 && (
-                            <div className="flex items-center gap-1 bg-slate-400/80 text-white px-3 py-1.5 rounded-full shadow-md">
-                                <span className="text-xs font-bold tracking-wide">+{overflowCount} more</span>
-                            </div>
-                        )}
+                {/* Stable intervention section keeps a future affordance anchor without adding help UI yet. */}
+                <section
+                    id="patient-view-interventions"
+                    aria-label="Active interventions"
+                    className="mt-4 rounded-3xl border border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm"
+                >
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                Interventions
+                            </p>
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                                {hasActiveInterventions
+                                    ? `${interventionCount} active intervention${interventionCount === 1 ? '' : 's'}`
+                                    : 'No active interventions'}
+                            </p>
+                        </div>
+
+                        <div
+                            id="patient-view-intervention-anchor"
+                            className="min-h-9 min-w-9 shrink-0 flex items-start justify-end"
+                        >
+                            <InterventionHelpToggle
+                                interventionLabels={interventionHelpLabels}
+                                suppressed={suppressInterventionHelp}
+                            />
+                        </div>
                     </div>
-                )}
+
+                    {hasActiveInterventions ? (
+                        <>
+                            <ul
+                                id="active-interventions-list"
+                                className="mt-3 flex flex-wrap gap-2"
+                                aria-label="Visible active interventions"
+                            >
+                                {visibleInterventions.map((action) => (
+                                    <li
+                                        key={action.id}
+                                        className="flex items-center gap-2 rounded-full bg-indigo-600/90 px-3 py-1.5 text-white shadow-md backdrop-blur-md animate-in fade-in slide-in-from-left-2"
+                                    >
+                                        <Zap size={14} className="animate-pulse" />
+                                        <span className="text-xs font-bold tracking-wide">
+                                            {getInterventionBadgeLabel(action.id)}
+                                        </span>
+                                    </li>
+                                ))}
+                                {overflowCount > 0 && (
+                                    <li
+                                        id="active-interventions-overflow"
+                                        className="flex items-center gap-1 rounded-full bg-slate-400/80 px-3 py-1.5 text-white shadow-md"
+                                        aria-label={`${overflowCount} additional active interventions not shown`}
+                                    >
+                                        <span className="text-xs font-bold tracking-wide">+{overflowCount} more</span>
+                                    </li>
+                                )}
+                            </ul>
+
+                            {overflowCount > 0 && (
+                                <p className="mt-3 text-[11px] font-medium leading-relaxed text-slate-500">
+                                    Showing {visibleInterventions.length} of {interventionCount} active interventions.
+                                </p>
+                            )}
+                        </>
+                    ) : (
+                        <p
+                            id="active-interventions-empty-state"
+                            className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 px-3 py-2 text-xs font-medium text-slate-500"
+                        >
+                            No active interventions right now.
+                        </p>
+                    )}
+                </section>
             </header>
 
             {/* Main Illustration Area */}

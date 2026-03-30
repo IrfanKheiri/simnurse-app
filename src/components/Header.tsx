@@ -1,7 +1,18 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { HelpCircle } from 'lucide-react';
 import type { AdjustableVital, PatientState } from '../types/scenario';
-import type { UrgencyItem, UrgencyLevel } from '../App';
+import { isInlineHelpSuppressed, type InlineHelpBlockers } from '../lib/inlineHelp';
+import { useInlineHelpPopover } from '../hooks/useInlineHelpPopover';
+import {
+  formatUrgencyItemAriaLabel,
+  formatUrgencyItemTitle,
+  URGENCY_STRIP_HELP_EMPTY_STATE,
+  URGENCY_STRIP_HELP_INTRO,
+  URGENCY_STRIP_HELP_PRIORITY,
+  URGENCY_STRIP_HELP_TITLE,
+} from '../lib/urgencyContent';
+import type { UrgencyItem, UrgencyLevel } from '../lib/urgencyContent';
 
 // ─── Vital urgency thresholds ──────────────────────────────────────────────────
 // Returns 'critical' | 'warning' | 'normal' for a given vital reading.
@@ -49,6 +60,13 @@ const URGENCY_PILL: Record<UrgencyLevel, string> = {
   critical: 'bg-red-600 text-white animate-pulse',
 };
 
+const URGENCY_HELP_PANEL_POSITION = {
+  estimatedHeight: 188,
+  maxWidth: 320,
+  offset: 12,
+  viewportMargin: 16,
+} as const;
+
 // ─── Timer pill colour ───────────────────────────────────────────────────────
 
 function timerPillClass(pct: number): string {
@@ -82,7 +100,63 @@ interface HeaderProps {
   vitalDecayRates?: Partial<Record<AdjustableVital, number>>;
   timerPct?: number | null;
   elapsedSec?: number;
+  inlineHelpBlockers?: InlineHelpBlockers;
 }
+
+const UrgencyStripHelpToggle: React.FC<{
+  suppressed?: boolean;
+}> = ({ suppressed = false }) => {
+  const { isOpen, panelId, panelRef, panelStyle, toggle, triggerRef } = useInlineHelpPopover({
+    suppressed,
+    ...URGENCY_HELP_PANEL_POSITION,
+  });
+
+  if (suppressed) {
+    return null;
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        aria-describedby={isOpen ? panelId : undefined}
+        aria-label="Urgency help"
+        title="Explain urgency strip"
+        onClick={toggle}
+        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-800/70 p-2 text-slate-300 transition-colors hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-medical-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-800"
+      >
+        <HelpCircle size={14} />
+      </button>
+
+      {isOpen && panelStyle && createPortal(
+        <div
+          ref={panelRef}
+          id={panelId}
+          role="note"
+          className="fixed z-[60] rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-xl"
+          style={panelStyle}
+        >
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+            {URGENCY_STRIP_HELP_TITLE}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">
+            {URGENCY_STRIP_HELP_INTRO}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">
+            {URGENCY_STRIP_HELP_PRIORITY}
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+            {URGENCY_STRIP_HELP_EMPTY_STATE}
+          </p>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+};
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -100,8 +174,10 @@ const Header: React.FC<HeaderProps> = ({
   vitalDecayRates = {},
   timerPct = null,
   elapsedSec = 0,
+  inlineHelpBlockers = {},
 }) => {
   const hasMonitor = monitorState !== null && unlocked !== undefined;
+  const suppressUrgencyHelp = hasMonitor && isInlineHelpSuppressed(inlineHelpBlockers);
 
   return (
     <header id="app-header" className="sticky top-0 z-50 flex flex-col border-b border-slate-100 bg-white">
@@ -234,32 +310,37 @@ const Header: React.FC<HeaderProps> = ({
       {/* ── UrgencyStrip: merged failure proximity + intervention countdowns ── */}
       {/* Render always when monitor is active so walkthrough can target it */}
       {hasMonitor && (
-        <div className="relative">
-          <div
-            id="urgency-strip"
-            className="flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 scrollbar-none transition-all duration-200 py-1.5 min-h-[2rem]"
-            aria-label="Timing alerts"
-          >
-            {urgencyItems.map((item) => (
-              <span
-                key={item.key}
-                role="status"
-                tabIndex={0}
-                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
-                aria-label={`${item.urgency === 'critical' ? 'Critical' : 'Alert'}: ${item.label} — ${Math.ceil(item.remainingSec)} seconds remaining`}
-                title={`${item.type === 'failure' ? 'Failure risk' : 'Intervention'}: ${item.label} — ${Math.ceil(item.remainingSec)}s remaining`}
-              >
-                {item.label}
-                <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
-              </span>
-            ))}
-          </div>
-          {urgencyItems.length > 0 && (
+        <div className="flex items-stretch bg-slate-800">
+          <div className="relative min-w-0 flex-1">
             <div
-              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-slate-800 to-transparent"
-              aria-hidden="true"
-            />
-          )}
+              id="urgency-strip"
+              className="flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 scrollbar-none transition-all duration-200 py-1.5 min-h-[2rem]"
+              aria-label="Timing alerts"
+            >
+              {urgencyItems.map((item) => (
+                <span
+                  key={item.key}
+                  role="status"
+                  tabIndex={0}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
+                  aria-label={formatUrgencyItemAriaLabel(item)}
+                  title={formatUrgencyItemTitle(item)}
+                >
+                  {item.label}
+                  <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
+                </span>
+              ))}
+            </div>
+            {urgencyItems.length > 0 && (
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-slate-800 to-transparent"
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          <div className="flex shrink-0 items-center pr-2">
+            <UrgencyStripHelpToggle suppressed={suppressUrgencyHelp} />
+          </div>
         </div>
       )}
     </header>

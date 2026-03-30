@@ -48,14 +48,16 @@ The engine no longer infers arrest solely from rhythm. `pulsePresent` is part of
 
 ### `src/data/seedScenarios.ts`
 
-This file is the scenario DSL for the app. Each scenario defines:
+This file is the scenario DSL for the app and the canonical source of truth for protocol sequencing and debrief rationale authoring. Each scenario defines:
 
 - initial patient state
 - baseline vital progression
 - optional scheduled state changes for timed non-numeric transitions
-- available interventions and their effects
+- available interventions, their effects, and authored rationale
 - expected intervention sequence
 - success and failure conditions using explicit comparators and hold durations
+
+Do not maintain duplicate scenario-reference markdown for protocol steps or rationales. When scenario authoring rules change, validate the canonical data directly in `src/data/seedScenarios.test.ts`.
 
 ### `src/lib/db.ts`
 

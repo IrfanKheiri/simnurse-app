@@ -5,6 +5,10 @@ const arrestSuccess = (durationSec: number): Condition[] => [
   { vital: 'rhythm', equals: 'Sinus', durationSec },
 ];
 
+// Source of truth note: scenario `expected_sequence` ordering and intervention `rationale`
+// entries in this file are canonical for runtime behavior and test coverage, including all
+// BLS protocol flows. External markdown mirrors are optional and must not be required.
+
 export const seedScenarios: Scenario[] = [
   // Scenario 1 — adult_vfib_arrest_witnessed
   // Changes: expected_sequence reordered (defibrillate first), vfib_to_asystole.atSec 180→420, failure elapsedSecGte 600→1200
@@ -49,21 +53,18 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 10,
         priority: 100,
         requires_rhythm: ['VFib', 'VTach'],
-        success_chance: 0.6,
-        success_state: { rhythm: 'Sinus', hr: 85, bp: '110/70', spo2: 92, rr: 12, pulsePresent: true },
         rationale: 'Early defibrillation is the only definitive treatment for shockable rhythms (VFib/pVT); each minute of delay reduces survival by 7–10% per the AHA 2020 Chain of Survival guidelines.',
       },
       epinephrine_1mg: {
         duration_sec: 240,
         priority: 5,
-        success_chance: 0.1,
-        success_state: { rhythm: 'Sinus', hr: 110, bp: '90/50', rr: 10, pulsePresent: true },
         rationale: 'Epinephrine 1 mg IV/IO every 3–5 minutes increases coronary and cerebral perfusion pressure via alpha-1 vasoconstriction, improving the likelihood of ROSC in non-shockable and refractory arrest per AHA 2020 ACLS guidelines.',
       },
       amiodarone_300mg: {
         duration_sec: 600,
         priority: 6,
-        success_chance: 0.4,
+        success_chance: 1,
+        success_state: { rhythm: 'Sinus', hr: 110, bp: '90/50', spo2: 96, rr: 14, pulsePresent: true },
         rationale: 'Amiodarone 300 mg IV/IO is the first-line antiarrhythmic for shock-refractory VFib/pVT; it stabilises the myocardium and reduces recurrence of ventricular fibrillation after defibrillation per AHA 2020 ACLS guidelines.',
       },
       rescue_breathing: {
@@ -160,21 +161,18 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 10,
         priority: 100,
         requires_rhythm: ['VFib', 'VTach'],
-        success_chance: 0.75,
-        success_state: { rhythm: 'Sinus', hr: 95, bp: '120/80', rr: 14, spo2: 94, pulsePresent: true },
         rationale: 'Early defibrillation is the only definitive treatment for shockable rhythms (VFib/pVT); each minute of delay reduces survival by 7–10% per the AHA 2020 Chain of Survival guidelines.',
       },
       epinephrine_1mg: {
         duration_sec: 240,
         priority: 5,
-        success_chance: 0.1,
-        success_state: { rhythm: 'Sinus', hr: 110, bp: '90/50', rr: 10, pulsePresent: true },
         rationale: 'Epinephrine 1 mg IV/IO every 3–5 minutes increases coronary and cerebral perfusion pressure via alpha-1 vasoconstriction, improving the likelihood of ROSC in refractory arrest per AHA 2020 ACLS guidelines.',
       },
       amiodarone_300mg: {
         duration_sec: 600,
         priority: 6,
-        success_chance: 0.3,
+        success_chance: 1,
+        success_state: { rhythm: 'Sinus', hr: 95, bp: '120/80', spo2: 94, rr: 14, pulsePresent: true },
         rationale: 'Amiodarone 300 mg IV/IO is the first-line antiarrhythmic for shock-refractory VFib/pVT; it stabilises the myocardium and reduces recurrence of ventricular fibrillation after defibrillation per AHA 2020 ACLS guidelines.',
       },
     },
@@ -344,22 +342,22 @@ export const seedScenarios: Scenario[] = [
       rescue_breathing: {
         duration_sec: 60,
         priority: 80,
-        state_overrides: { spo2: 98 },
-        rationale: 'Rescue breathing corrects life-threatening hypoxia before naloxone takes effect (onset 3–5 min); oxygenation is the immediate priority as opioid-induced respiratory depression causes SpO₂ to fall rapidly per AHA 2020 guidelines.',
+        state_overrides: { spo2: 88 },
+        rationale: 'Rescue breathing is the immediate temporising intervention in opioid-induced apnoea; assisted ventilations improve oxygenation while naloxone is obtained and takes effect, but they do not by themselves reverse the underlying opioid toxidrome per AHA 2020 guidelines.',
       },
       naloxone_intranasal_4mg: {
-        duration_sec: 1800,
+        duration_sec: 180,
         priority: 100,
         success_chance: 1,
-        success_state: { rr: 14, spo2: 96, hr: 80, pulsePresent: true },
-        rationale: '4 mg intranasal naloxone is the AHA 2023 updated first-line dose; it competitively antagonises µ-opioid receptors, reversing respiratory depression within 2–5 minutes for standard opioids and high-potency fentanyl analogues.',
+        success_state: { rr: 8, spo2: 90, hr: 68, pulsePresent: true },
+        rationale: '4 mg intranasal naloxone is the AHA 2023 updated first-line dose; the first dose may produce only a partial respiratory response in high-potency or long-acting opioid exposure, so ventilatory support must continue while reassessment occurs.',
       },
       naloxone_intranasal_repeat: {
         duration_sec: 120,
         priority: 55,
-        success_chance: 0.8,
-        success_state: { rr: 10, spo2: 88, hr: 85 },
-        rationale: 'Repeat naloxone dosing every 2–4 minutes is required for high-potency synthetic opioids whose receptor affinity may exceed standard doses; rescue breathing must continue between doses until a response is confirmed.',
+        success_chance: 1,
+        success_state: { rr: 14, spo2: 96, hr: 82, pulsePresent: true },
+        rationale: 'Repeat naloxone dosing every 2–4 minutes is required when the first dose yields only partial improvement; the repeat dose completes reversal of opioid-induced respiratory depression while rescue breathing continues between doses.',
       },
       cpr_30_2: {
         duration_sec: 120,
@@ -433,7 +431,8 @@ export const seedScenarios: Scenario[] = [
   },
 
   // Scenario 8 — adult_svt
-  // Changes: title updated to 'Adult Stable Tachycardia (SVT)', initial_state bp '85/50'→'110/72'
+  // Changes: title updated to 'Adult Stable Tachycardia (SVT)', initial_state bp '85/50'→'110/72',
+  //          establish_iv added before adenosine to reflect rapid IV push delivery requirements
   {
     scenario_id: 'adult_svt',
     title: 'Adult Stable Tachycardia (SVT)',
@@ -450,7 +449,7 @@ export const seedScenarios: Scenario[] = [
       glucose: 110,
     },
     baseline_progressions: [],
-    expected_sequence: ['vagal_maneuver', 'adenosine_6mg', 'synchronized_cardioversion'],
+    expected_sequence: ['vagal_maneuver', 'establish_iv', 'adenosine_6mg', 'synchronized_cardioversion'],
     interventions: {
       vagal_maneuver: {
         duration_sec: 30,
@@ -458,6 +457,11 @@ export const seedScenarios: Scenario[] = [
         success_chance: 0.25,
         success_state: { hr: 90, rhythm: 'Sinus', bp: '120/80', pulsePresent: true },
         rationale: 'Vagal manoeuvres (Valsalva or carotid sinus massage) increase vagal tone at the AV node, potentially terminating SVT; they are the first-line non-pharmacological intervention for stable SVT per AHA 2020 ACLS guidelines.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 80,
+        rationale: 'Adenosine must be administered as a rapid IV push followed by an immediate saline flush, so vascular access must be established before pharmacologic treatment of stable SVT per AHA 2020 ACLS tachycardia guidance.',
       },
       adenosine_6mg: {
         duration_sec: 120,
@@ -558,7 +562,7 @@ export const seedScenarios: Scenario[] = [
         message: 'Five minutes have elapsed without ROSC. Perimortem Cesarean Delivery (PMCD) should be initiated immediately to improve maternal resuscitation outcome (ACOG/AHA).',
       },
     ],
-    expected_sequence: ['left_uterine_displacement', 'cpr', 'defibrillate', 'establish_iv', 'epinephrine_1mg', 'perimortem_csection'],
+    expected_sequence: ['left_uterine_displacement', 'cpr', 'defibrillate', 'establish_iv', 'epinephrine_1mg'],
     interventions: {
       left_uterine_displacement: {
         duration_sec: 30,
@@ -576,8 +580,6 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 10,
         priority: 100,
         requires_rhythm: ['VFib', 'VTach'],
-        success_chance: 0.6,
-        success_state: { rhythm: 'Sinus', hr: 110, bp: '100/60', spo2: 94, rr: 14, pulsePresent: true },
         rationale: 'Defibrillation is not contraindicated in pregnancy; it is the only definitive treatment for VFib and must not be delayed — fetal risk from the shock is negligible compared to the risk of untreated maternal VFib.',
       },
       establish_iv: {
@@ -677,7 +679,8 @@ export const seedScenarios: Scenario[] = [
 
   // Scenario 12 — acs_stemi
   // Changes: expected_sequence updated (O2 removed, ticagrelor/heparin/cath_lab added), oxygen_nrb.spo2 100→94,
-  //          ticagrelor_180mg/heparin_bolus/activate_cath_lab added, success_conditions updated (spo2 condition removed, bp max 120→140)
+  //          ticagrelor_180mg/heparin_bolus/activate_cath_lab added, establish_iv added before heparin_bolus,
+  //          success_conditions updated (spo2 condition removed, bp max 120→140)
   {
     scenario_id: 'acs_stemi',
     title: 'Acute Coronary Syndrome (STEMI)',
@@ -702,7 +705,7 @@ export const seedScenarios: Scenario[] = [
         message: 'Untreated STEMI deteriorated into ventricular fibrillation.',
       },
     ],
-    expected_sequence: ['aspirin_324mg', 'ticagrelor_180mg', 'nitroglycerin_04mg', 'heparin_bolus', 'activate_cath_lab'],
+    expected_sequence: ['aspirin_324mg', 'ticagrelor_180mg', 'nitroglycerin_04mg', 'establish_iv', 'heparin_bolus', 'activate_cath_lab'],
     interventions: {
       aspirin_324mg: {
         duration_sec: 1800,
@@ -710,6 +713,12 @@ export const seedScenarios: Scenario[] = [
         success_chance: 1,
         success_state: { hr: 80, bp: '135/85', pulsePresent: true },
         rationale: 'Aspirin 324 mg chewed immediately inhibits thromboxane A2-mediated platelet aggregation, reducing infarct size and mortality; it is the highest-priority single drug in STEMI management per AHA 2020 STEMI guidelines.',
+      },
+      establish_iv: {
+        duration_sec: 60,
+        priority: 62,
+        success_chance: 1,
+        rationale: 'IV access is required before unfractionated heparin bolus administration and supports additional ACS medications, laboratory work, and rapid escalation during STEMI care; vascular access should be secured early in the reperfusion pathway per AHA 2020 ACS guidance.',
       },
       nitroglycerin_04mg: {
         duration_sec: 300,
@@ -945,21 +954,18 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 10,
         priority: 100,
         requires_rhythm: ['VFib', 'VTach'],
-        success_chance: 0.8,
-        success_state: { rhythm: 'Sinus', hr: 120, bp: '95/60', spo2: 98, rr: 20, pulsePresent: true },
         rationale: 'Paediatric defibrillation at 2–4 J/kg using dose-attenuator pads is the only definitive treatment for shockable rhythms in children; weight-appropriate energy prevents myocardial injury while terminating VFib per PALS 2020 guidelines.',
       },
       epinephrine_peds_01mgkg: {
         duration_sec: 240,
         priority: 5,
-        success_chance: 0.2,
-        success_state: { rhythm: 'Sinus', hr: 115, bp: '85/50', rr: 18, pulsePresent: true },
         rationale: 'Epinephrine 0.01 mg/kg IV/IO every 3–5 minutes increases coronary perfusion pressure via alpha-1 vasoconstriction; it is the recommended vasopressor in paediatric pulseless arrest per PALS 2020 guidelines.',
       },
       amiodarone_peds_5mgkg: {
         duration_sec: 600,
         priority: 6,
-        success_chance: 0.4,
+        success_chance: 1,
+        success_state: { rhythm: 'Sinus', hr: 115, bp: '85/50', spo2: 97, rr: 18, pulsePresent: true },
         rationale: 'Amiodarone 5 mg/kg IV/IO is the first-line antiarrhythmic for shock-refractory paediatric VFib/pVT; it prolongs action potential duration and reduces recurrence of ventricular fibrillation after defibrillation per PALS 2020 guidelines.',
       },
     },
@@ -1020,7 +1026,7 @@ export const seedScenarios: Scenario[] = [
         priority: 90,
         success_chance: 1,
         success_state: {},
-        rationale: 'A carotid pulse check limited to ≤10 seconds confirms pulselessness and triggers the cardiac arrest algorithm; exceeding 10 seconds risks unnecessary delay to compressions per AHA 2020 BLS guidelines.',
+        rationale: 'A carotid pulse check is a healthcare-provider assessment and is not required in the lay-rescuer bystander flow; if attempted, it must be limited to ≤10 seconds so compressions and AED retrieval are not delayed per AHA 2020 BLS guidelines.',
       },
       cpr_30_2: {
         duration_sec: 120,
@@ -1044,15 +1050,13 @@ export const seedScenarios: Scenario[] = [
       aed_attach: {
         duration_sec: 30,
         priority: 150,
-        success_chance: 0.55,
-        success_state: { rhythm: 'Sinus', hr: 80, bp: '100/60', spo2: 94, rr: 12, pulsePresent: true },
         rationale: 'AED attachment and defibrillation is the only definitive treatment for shockable rhythms; each minute without defibrillation reduces survival 7–10%, making early defibrillation the highest priority after confirming arrest per AHA 2020 BLS guidelines.',
       },
       resume_cpr_post_shock: {
         duration_sec: 120,
         priority: 70,
         success_chance: 1,
-        success_state: {},
+        success_state: { rhythm: 'Sinus', hr: 80, bp: '100/60', spo2: 94, rr: 12, pulsePresent: true },
         rationale: 'Immediately resuming compressions after shock delivery maintains coronary perfusion pressure during the peri-shock period; the heart requires several cycles before generating effective mechanical output after defibrillation per AHA 2020 BLS guidelines.',
       },
     },
@@ -1140,15 +1144,13 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 30,
         priority: 150,
         requires_rhythm: ['VFib', 'VTach'],
-        success_chance: 0.7,
-        success_state: { rhythm: 'Sinus', hr: 88, bp: '105/65', spo2: 95, rr: 14, pulsePresent: true },
         rationale: 'AED application and defibrillation is the definitive treatment for VFib; pads must be placed and rhythm analysed at the earliest opportunity while compressions continue until immediately before the shock per AHA 2020 BLS guidelines.',
       },
       resume_cpr_post_shock: {
         duration_sec: 120,
         priority: 70,
         success_chance: 1,
-        success_state: {},
+        success_state: { rhythm: 'Sinus', hr: 88, bp: '105/65', spo2: 95, rr: 14, pulsePresent: true },
         rationale: 'Post-shock CPR bridges the peri-shock period during which the stunned myocardium requires mechanical support; compressions must restart within 10 seconds of shock delivery per AHA 2020 BLS guidelines.',
       },
       rescue_breathing: {
@@ -1163,7 +1165,8 @@ export const seedScenarios: Scenario[] = [
 
   // BLS Scenario 3 — bls_adult_aed_public_access
   // AED use (public access defibrillation): power on → attach pads → analyze → shock → resume CPR
-  // BLS audit: added check_responsiveness (X1), call_911 (X2), check_carotid_pulse (X3) to sequence and actions
+  // BLS audit: standardized public-access lay-rescuer flow to match the bystander scenario —
+  //   no required pulse check before CPR/AED use; check_carotid_pulse remains only as an optional distractor step
   {
     scenario_id: 'bls_adult_aed_public_access',
     title: 'Adult Cardiac Arrest — Public AED',
@@ -1188,7 +1191,7 @@ export const seedScenarios: Scenario[] = [
         message: 'Every minute without defibrillation reduces survival 7–10%. Deliver the AED shock immediately and resume CPR right after.',
       },
     ],
-    expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2', 'aed_power_on', 'aed_attach_pads', 'aed_analyze', 'aed_shock', 'resume_cpr_post_shock'],
+    expected_sequence: ['check_responsiveness', 'call_911', 'cpr_30_2', 'aed_power_on', 'aed_attach_pads', 'aed_analyze', 'aed_shock', 'resume_cpr_post_shock'],
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1208,7 +1211,7 @@ export const seedScenarios: Scenario[] = [
         priority: 90,
         success_chance: 1,
         success_state: {},
-        rationale: 'Pulse confirmation within ≤10 seconds determines pulselessness and justifies AED use; avoiding unnecessary defibrillation in patients with a pulse prevents potentially fatal induced VFib per AHA 2020 BLS guidelines.',
+        rationale: 'A carotid pulse check is not part of the lay-rescuer public-access AED sequence; it remains only as an optional healthcare-provider assessment, and any attempt must stay within ≤10 seconds so CPR and AED setup are not delayed per AHA 2020 BLS guidelines.',
       },
       cpr_30_2: {
         duration_sec: 120,
@@ -1239,13 +1242,13 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 5,
         priority: 185,
         requires_rhythm: ['VFib', 'VTach'],
-        success_chance: 0.75,
-        success_state: { rhythm: 'Sinus', hr: 82, bp: '108/68', spo2: 96, rr: 12, pulsePresent: true },
         rationale: 'AED shock delivery terminates VFib by simultaneously depolarising the myocardium, allowing the sinus node to recapture rhythm; shocking as early as possible is the single most effective intervention for witnessed VFib per AHA 2020 BLS guidelines.',
       },
       resume_cpr_post_shock: {
         duration_sec: 120,
         priority: 100,
+        success_chance: 1,
+        success_state: { rhythm: 'Sinus', hr: 82, bp: '108/68', spo2: 96, rr: 12, pulsePresent: true },
         state_overrides: { bp: '68/28', spo2: 84 },
         rationale: 'Compressions should restart within 10 seconds of shock delivery to support a post-shock heart that may not immediately generate adequate cardiac output; immediate CPR prevents re-arrest per AHA 2020 BLS guidelines.',
       },
@@ -1323,15 +1326,13 @@ export const seedScenarios: Scenario[] = [
       aed_attach: {
         duration_sec: 30,
         priority: 150,
-        success_chance: 0.65,
-        success_state: { rhythm: 'Sinus', hr: 115, bp: '90/55', spo2: 96, rr: 22, pulsePresent: true },
         rationale: 'AED with paediatric dose-attenuator pads delivers 2–4 J/kg for patients under 8 years or under 25 kg; defibrillation addresses any shockable rhythm while weight-appropriate energy prevents myocardial injury per AHA 2020 BLS paediatric guidelines.',
       },
       resume_cpr_post_shock: {
         duration_sec: 120,
         priority: 70,
         success_chance: 1,
-        success_state: {},
+        success_state: { rhythm: 'Sinus', hr: 115, bp: '90/55', spo2: 96, rr: 22, pulsePresent: true },
         rationale: 'Resuming compressions within 10 seconds of shock maintains perfusion in the post-shock period before ROSC can be confirmed; the paediatric myocardium requires mechanical support after cardioversion per AHA 2020 BLS guidelines.',
       },
     },
@@ -1396,7 +1397,7 @@ export const seedScenarios: Scenario[] = [
         priority: 90,
         success_chance: 1,
         success_state: {},
-        rationale: 'Pulse reassessment after the first CPR cycle quantifies response and directs continuation or transition of the algorithm; limited to ≤10 seconds to minimise interruptions to compressions per AHA 2020 BLS guidelines.',
+        rationale: 'Healthcare providers perform a carotid pulse check within ≤10 seconds before starting child CPR; confirming pulselessness early directs the team into the 15:2 two-rescuer paediatric arrest algorithm without delaying compressions per AHA 2020 BLS guidelines.',
       },
       cpr_15_2_child: {
         duration_sec: 120,
@@ -1421,15 +1422,13 @@ export const seedScenarios: Scenario[] = [
       aed_attach: {
         duration_sec: 30,
         priority: 150,
-        success_chance: 0.7,
-        success_state: { rhythm: 'Sinus', hr: 118, bp: '92/58', spo2: 97, rr: 24, pulsePresent: true },
         rationale: 'Defibrillation treats shockable rhythms; paediatric attenuator pads reduce delivered energy to 2–4 J/kg for appropriate weight-based dosing in small children, preventing myocardial injury per AHA 2020 BLS paediatric guidelines.',
       },
       resume_cpr_post_shock: {
         duration_sec: 120,
         priority: 70,
         success_chance: 1,
-        success_state: {},
+        success_state: { rhythm: 'Sinus', hr: 118, bp: '92/58', spo2: 97, rr: 24, pulsePresent: true },
         rationale: 'Post-shock CPR is mandatory per AHA guidelines; compressions support a stunned paediatric myocardium that requires time to generate effective mechanical output after defibrillation per AHA 2020 BLS guidelines.',
       },
       rescue_breathing_child: {
@@ -1471,7 +1470,7 @@ export const seedScenarios: Scenario[] = [
         id: 'infant_arrest_technique_reminder',
         atSec: 60,
         changes: {},
-        message: 'Infant CPR: use 2-finger technique just below the nipple line. Compress 1.5 inches at 100–120/min. Deliver 1 breath every 3–5 seconds.',
+        message: 'Infant CPR: use the 2-finger technique just below the nipple line. Compress 1.5 inches at 100–120/min and continue 30:2 cycles until you leave to call 911 after about 2 minutes.',
       },
     ],
     expected_sequence: ['check_responsiveness', 'check_brachial_pulse', 'open_airway_head_tilt_chin_lift', 'cpr_30_2_infant_2finger', 'rescue_breathing_infant', 'call_911'],
@@ -1528,7 +1527,7 @@ export const seedScenarios: Scenario[] = [
   },
 
   // BLS Scenario 7 — bls_infant_two_rescuer_cpr
-  // Two-rescuer infant CPR: 15:2, 2-thumb encircling technique, 1 breath per 3–5 sec
+  // Two-rescuer infant CPR: 15:2, 2-thumb encircling technique, coordinated ventilations
   // BLS audit: added check_responsiveness (X1), call_911 (X2 — after check_responsiveness, second rescuer calls),
   //   check_brachial_pulse (X3)
   {
@@ -1552,7 +1551,7 @@ export const seedScenarios: Scenario[] = [
         id: 'infant_two_rescuer_technique_reminder',
         atSec: 90,
         changes: {},
-        message: 'Two-rescuer infant CPR: use the 2-thumb encircling technique for superior compression force. Ratio is 15:2. Ventilate every 3–5 seconds.',
+        message: 'Two-rescuer infant CPR: use the 2-thumb encircling technique for superior compression force. Ratio is 15:2 with coordinated ventilations during each compression cycle.',
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'check_brachial_pulse', 'cpr_15_2_infant_2thumb', 'bag_valve_mask_infant', 'switch_compressor_roles'],

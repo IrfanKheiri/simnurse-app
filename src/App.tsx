@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ActiveIntervention, AdjustableVital, Condition, CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent, StateChangeEvent } from './types/scenario';
+import type { ActiveIntervention, AdjustableVital, CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent, StateChangeEvent } from './types/scenario';
 import CheatOverlay from './components/CheatOverlay';
 import ActionsScreen from './components/ActionsScreen';
 import BottomNav from './components/BottomNav';
@@ -19,6 +19,9 @@ import { useHelpSystem } from './hooks/useHelpSystem';
 import type { AppContext } from './data/helpContent';
 import { useScenarioEngine } from './hooks/useScenarioEngine';
 import { db } from './lib/db';
+import { getInterventionDisplayLabel, getInterventionShortLabel } from './lib/interventionLabels';
+import type { InlineHelpBlockers } from './lib/inlineHelp';
+import { computeUrgencyItems } from './lib/urgencyContent';
 import { calculateScenarioProgress } from './lib/scenarioProgress';
 
 const APP_SHELL_CLASS =
@@ -44,46 +47,6 @@ function formatTimestamp(simTimeSec: number): string {
   return `${mins}:${secs}`;
 }
 
-const INTERVENTION_LABELS: Record<string, string> = {
-  cpr: 'CPR (High-Quality)',
-  defibrillate: 'Defibrillate (AED/Manual)',
-  defibrillate_pediatric: 'Defibrillate — Pediatric (2 J/kg)',
-  synchronized_cardioversion: 'Synchronized Cardioversion',
-  vagal_maneuver: 'Vagal Maneuver',
-  rescue_breathing: 'Rescue Breathing (BVM)',
-  intubation: 'Advanced Airway (Intubation)',
-  oxygen_nrb: 'Oxygen via NRB Mask',
-  high_flow_oxygen: 'High-Flow Oxygen (15 L/min)',
-  albuterol_nebulizer: 'Albuterol Nebulizer (2.5mg)',
-  ipratropium_nebulizer: 'Ipratropium Nebulizer (0.5mg)',
-  epinephrine_1mg: 'Epinephrine 1mg IV/IO',
-  epinephrine_im_0_5mg: 'Epinephrine 0.5mg IM (1:1,000)',
-  epinephrine_im_pediatric: 'Epinephrine 0.01mg/kg IM (Peds)',
-  epinephrine_peds_01mgkg: 'Epinephrine 0.01mg/kg IV/IO (Peds)',
-  amiodarone_300mg: 'Amiodarone 300mg IV/IO',
-  amiodarone_150mg_stable: 'Amiodarone 150mg IV (Stable VTach)',
-  amiodarone_peds_5mgkg: 'Amiodarone 5mg/kg IV/IO (Peds)',
-  adenosine_6mg: 'Adenosine 6mg Rapid IVP',
-  atropine_0_5mg: 'Atropine 0.5mg IV',
-  naloxone_2mg: 'Naloxone 2mg IN/IV',
-  aspirin_324mg: 'Aspirin 324mg PO',
-  ticagrelor_180mg: 'Ticagrelor 180mg PO (Loading)',
-  nitroglycerin_04mg: 'Nitroglycerin 0.4mg SL',
-  heparin_bolus: 'Heparin Bolus IV (UFH)',
-  methylprednisolone_iv: 'Methylprednisolone 1mg/kg IV',
-  alteplase: 'Alteplase (rtPA) IV Infusion',
-  labetalol_10mg: 'Labetalol 10mg IV',
-  normal_saline_bolus: 'Normal Saline Bolus (500mL IV)',
-  establish_iv: 'Establish IV/IO Access',
-  check_glucose: 'Check Blood Glucose',
-  pulse_check: 'Pulse / Rhythm Check',
-  transcutaneous_pacing: 'Transcutaneous Pacing (TCP)',
-  ct_brain_noncontrast: 'CT Brain (Non-Contrast)',
-  activate_cath_lab: 'Activate Cath Lab / PCI Consult',
-  left_uterine_displacement: 'Left Uterine Displacement (LUD)',
-  perimortem_csection: 'Perimortem Cesarean Delivery (PMCD)',
-};
-
 // ─── Cyclic interventions — must be reapplied when they expire ───────────────
 // Drugs and one-shot procedures are excluded (their expiry is not actionable).
 const CYCLIC_INTERVENTIONS = new Set([
@@ -102,202 +65,6 @@ const CYCLIC_INTERVENTIONS = new Set([
   'bag_valve_mask_infant',
   'transcutaneous_pacing',
 ]);
-
-// ─── UrgencyStrip types & helpers ──────────────────────────────────────────
-
-export type UrgencyLevel = 'low' | 'medium' | 'critical';
-
-export interface UrgencyItem {
-  key: string;
-  type: 'failure' | 'intervention';
-  label: string;
-  remainingSec: number;
-  urgency: UrgencyLevel;
-}
-
-export const INTERVENTION_SHORT_LABELS: Record<string, string> = {
-  cpr: 'CPR',
-  cpr_30_2: 'CPR',
-  cpr_30_2_child: 'CPR',
-  cpr_30_2_infant_2finger: 'CPR',
-  cpr_15_2_child: 'CPR',
-  cpr_15_2_infant_2thumb: 'CPR',
-  defibrillate: 'Defib',
-  defibrillate_pediatric: 'Defib',
-  aed_attach: 'AED',
-  aed_shock: 'Shock',
-  synchronized_cardioversion: 'Cardio',
-  rescue_breathing: 'RB',
-  rescue_breathing_child: 'RB',
-  rescue_breathing_infant: 'RB',
-  intubation: 'Intub',
-  oxygen_nrb: 'O₂',
-  high_flow_oxygen: 'O₂',
-  bag_valve_mask: 'BVM',
-  bag_valve_mask_child: 'BVM',
-  bag_valve_mask_infant: 'BVM',
-  epinephrine_1mg: 'Epi',
-  epinephrine_im_0_5mg: 'Epi',
-  epinephrine_im_pediatric: 'Epi',
-  epinephrine_peds_01mgkg: 'Epi',
-  amiodarone_300mg: 'Amio',
-  amiodarone_150mg_stable: 'Amio',
-  amiodarone_peds_5mgkg: 'Amio',
-  adenosine_6mg: 'Adeno',
-  atropine_0_5mg: 'Atrop',
-  naloxone_intranasal_4mg: 'Narcan',
-  naloxone_intranasal_repeat: 'Narcan',
-  naloxone_im_repeat: 'Narcan',
-  aspirin_324mg: 'ASA',
-  ticagrelor_180mg: 'Tica',
-  nitroglycerin_04mg: 'NTG',
-  heparin_bolus: 'Hep',
-  methylprednisolone_iv: 'MP',
-  alteplase: 'tPA',
-  labetalol_10mg: 'Label',
-  normal_saline_bolus: 'NS',
-  establish_iv: 'IV',
-  transcutaneous_pacing: 'TCP',
-  left_uterine_displacement: 'LUD',
-  perimortem_csection: 'PMCD',
-  recovery_position: 'Recov',
-  // BLS / assessment steps
-  call_911: '911',
-  check_responsiveness: 'Respond',
-  check_carotid_pulse: 'Carotid',
-  check_brachial_pulse: 'Brachial',
-  check_glucose: 'Glucose',
-  open_airway_head_tilt_chin_lift: 'Open Air',
-  sternal_rub_stimulation: 'Sternal',
-  lower_to_ground: 'Lower',
-  remove_from_water: 'Remove',
-  // AED steps
-  aed_power_on: 'AED On',
-  aed_attach_pads: 'AED Pads',
-  aed_analyze: 'AED Anlyz',
-  dry_chest_before_aed: 'Dry Chest',
-  // CPR variants
-  resume_cpr_post_shock: 'Rsm CPR',
-  switch_compressor_roles: 'Switch',
-  initial_rescue_breaths_5: 'Rescue Br',
-  // Choking
-  ask_if_choking: 'Ask Choke',
-  back_blows_5: 'Bk Blows',
-  abdominal_thrusts_heimlich_5: 'Heimlich',
-  look_in_mouth_before_breath: 'Chk Mouth',
-  back_slaps_infant_5: 'Bk Slaps',
-  chest_thrusts_infant_5: 'Chest Thr',
-  position_infant_face_down: 'Face Down',
-  // Respiratory / meds
-  albuterol_nebulizer: 'Albuterol',
-  ipratropium_nebulizer: 'Ipratrop',
-  magnesium_sulfate_iv: 'Mag Sulf',
-  iv_fluid_bolus_anaphylaxis: 'IV Fluid',
-  // Cardiology
-  vagal_maneuver: 'Vagal',
-  activate_cath_lab: 'Cath Lab',
-  ct_brain_noncontrast: 'CT Brain',
-};
-
-function getInterventionShortLabel(id: string): string {
-  return INTERVENTION_SHORT_LABELS[id] ?? id.slice(0, 6).toUpperCase();
-}
-
-function getInterventionUrgency(remainingSec: number): UrgencyLevel {
-  if (remainingSec < 10) return 'critical';
-  if (remainingSec < 30) return 'medium';
-  return 'low';
-}
-
-function getFailureConditionLabel(condition: Condition, remainingSec: number): string {
-  const secs = Math.ceil(remainingSec);
-  if (condition.elapsedSecGte !== undefined && !condition.vital) {
-    return `⏱ ~${secs}s left`;
-  }
-  if (condition.vital) {
-    const vitalName = condition.vital === 'pulsePresent' ? 'Pulse' : condition.vital.toUpperCase();
-    return `⚠ ${vitalName} ~${secs}s`;
-  }
-  return `⚠ ~${secs}s`;
-}
-
-function computeUrgencyItems(
-  activeScenario: Scenario | null,
-  failureHoldStarts: Record<string, number>,
-  elapsedSec: number,
-  activeInterventions: ActiveIntervention[],
-): UrgencyItem[] {
-  const items: UrgencyItem[] = [];
-
-  if (!activeScenario) return items;
-
-  // ── Failure proximity pills ──────────────────────────────────────────────
-  for (const [index, condition] of activeScenario.failure_conditions.entries()) {
-    // Hold-based vital condition
-    if (condition.durationSec !== undefined && condition.durationSec > 3) {
-      const holdKey = `failure-${index}`;
-      const holdStart = failureHoldStarts[holdKey];
-      if (holdStart !== undefined) {
-        const holdElapsed = elapsedSec - holdStart;
-        const warnThreshold = Math.max(condition.durationSec / 2, condition.durationSec - 12);
-        if (holdElapsed >= warnThreshold) {
-          const remainingSec = condition.durationSec - holdElapsed;
-          if (remainingSec > 0) {
-            items.push({
-              key: `fail-hold-${index}`,
-              type: 'failure',
-              label: getFailureConditionLabel(condition, remainingSec),
-              remainingSec,
-              urgency: remainingSec < 10 ? 'critical' : 'medium',
-            });
-          }
-        }
-      }
-    }
-
-    // Elapsed-time cutoff condition
-    if (condition.elapsedSecGte !== undefined && !condition.vital) {
-      // Warn from 25% remaining (minimum 120s before cutoff) so learners
-      // have meaningful advance notice — not just the last 60 seconds.
-      const warnWindow = Math.max(120, Math.round(condition.elapsedSecGte * 0.25));
-      const warnFrom = condition.elapsedSecGte - warnWindow;
-      if (elapsedSec >= warnFrom) {
-        const remainingSec = condition.elapsedSecGte - elapsedSec;
-        if (remainingSec > 0) {
-          items.push({
-            key: `fail-elapsed-${index}`,
-            type: 'failure',
-            label: getFailureConditionLabel(condition, remainingSec),
-            remainingSec,
-            urgency: remainingSec < 15 ? 'critical' : 'medium',
-          });
-        }
-      }
-    }
-  }
-
-  // ── Intervention countdown pills (timed only) ────────────────────────────
-  for (const intervention of activeInterventions) {
-    if (intervention.duration_sec === undefined) continue;
-    const remainingSec = intervention.duration_sec - (elapsedSec - intervention.start_time);
-    if (remainingSec <= 0) continue;
-    items.push({
-      key: `iv-${intervention.id}`,
-      type: 'intervention',
-      label: getInterventionShortLabel(intervention.id),
-      remainingSec,
-      urgency: getInterventionUrgency(remainingSec),
-    });
-  }
-
-  // Sort: failure pills first, then by remaining time ascending
-  items.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'failure' ? -1 : 1;
-    return a.remainingSec - b.remainingSec;
-  });
-
-  return items;
-}
 
 function computeVitalDecayRates(
   activeScenario: Scenario | null,
@@ -327,11 +94,6 @@ function computeVitalDecayRates(
 }
 
 // ─── End UrgencyStrip helpers ───────────────────────────────────────────────
-
-function prettifyInterventionId(interventionId: string): string {
-  return INTERVENTION_LABELS[interventionId] ??
-    interventionId.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-}
 
 function isInterventionLog(log: SessionLogEvent): log is Extract<SessionLogEvent, { event_type: 'intervention' }> {
   return log.event_type === 'intervention';
@@ -366,7 +128,7 @@ function buildActionFeedback(
         const expectedId = sequence[seqPos];
         const expectedDef = scenario?.interventions[expectedId];
         expectedMap.set(logId, {
-          label: prettifyInterventionId(expectedId),
+          label: getInterventionDisplayLabel(expectedId),
           rationale: expectedDef?.rationale,
         });
       }
@@ -386,7 +148,7 @@ function buildActionFeedback(
 
     return {
       id: logId,
-      name: prettifyInterventionId(log.details.intervention_id),
+      name: getInterventionDisplayLabel(log.details.intervention_id),
       isCorrect: !log.details.rejected,
       comment: log.details.message,
       timestamp: formatTimestamp(log.sim_time_sec),
@@ -505,6 +267,22 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   }, [activeScenario, previewOpen, showSummary, activeTab]);
 
   const helpSystem = useHelpSystem(helpContext);
+
+  const inlineHelpBlockers = useMemo<InlineHelpBlockers>(() => ({
+    helpPanel: helpSystem.panelOpen,
+    walkthrough: helpSystem.walkthroughActive,
+    correctActionWidget: !showSummary && correctActionMessage !== null,
+    incorrectActionWidget: !showSummary && incorrectActionMessage !== null,
+    cheatOverlay: !showSummary && cheatModeEnabled && cheatVisible,
+  }), [
+    cheatModeEnabled,
+    cheatVisible,
+    correctActionMessage,
+    helpSystem.panelOpen,
+    helpSystem.walkthroughActive,
+    incorrectActionMessage,
+    showSummary,
+  ]);
 
   const startScenarioRun = useCallback((scenario: Scenario) => {
     setPreviewOpen(false);
@@ -768,6 +546,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           outcome={scenarioOutcome}
           conclusion={activeScenario?.conclusion}
           onHelpClick={() => helpSystem.openPanel()}
+          inlineHelpBlockers={inlineHelpBlockers}
           onRestart={async () => {
             const fresh = await db.scenarios.get(activeScenario!.scenario_id);
             startScenarioRun(fresh ?? activeScenario!);
@@ -801,6 +580,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         vitalDecayRates={vitalDecayRates}
         timerPct={timerPct}
         elapsedSec={elapsedSec}
+        inlineHelpBlockers={inlineHelpBlockers}
       />
       {vitals && <ContextualOverlay spo2={vitals.spo2} />}
       <IncorrectActionWidget message={incorrectActionMessage} onClose={() => setIncorrectActionMessage(null)} />
@@ -816,7 +596,13 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         {activeTab === 'patient' && (
           <div key="patient" className="tab-enter h-full">
             {/* R-2: pass unlocked so badge opacity reflects vitals-unlock state */}
-            <PatientView onFinish={() => void handleManualFinish()} vitals={vitals} activeInterventions={activeInterventions} unlocked={unlocked.spo2 || unlocked.hr} />
+            <PatientView
+              onFinish={() => void handleManualFinish()}
+              vitals={vitals}
+              activeInterventions={activeInterventions}
+              unlocked={unlocked.spo2 || unlocked.hr}
+              inlineHelpBlockers={inlineHelpBlockers}
+            />
           </div>
         )}
         {activeTab === 'actions' && (

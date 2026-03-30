@@ -157,7 +157,7 @@ Both fields are optional so the interface degrades gracefully when:
 
 Add `rationale` to each `InterventionDefinition` entry that appears in any scenario's `expected_sequence`. Interventions that are never in a sequence (e.g. `rescue_breathing` in a scenario where it's a supplementary option) do not need rationale added — the UI degrades gracefully.
 
-The `rationale` text should be sourced directly from the "AHA Rationale" column in `docs/BLS_Action_Sequences.md`, adapted to 1–2 sentences.
+The `rationale` text should be authored and maintained directly on the matching `InterventionDefinition` entries in `src/data/seedScenarios.ts`, which is the canonical source of truth for BLS protocol sequencing and debrief rationale. Duplicate scenario-reference markdown should not be maintained. Runtime behavior and tests should read and validate the canonical scenario data directly, with source-of-truth invariants covered in `src/data/seedScenarios.test.ts`.
 
 ### 4.2 Worked example — `adult_vfib_arrest_witnessed`
 

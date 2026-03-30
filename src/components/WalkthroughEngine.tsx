@@ -297,16 +297,6 @@ const WalkthroughEngine: React.FC<WalkthroughEngineProps> = ({ helpSystem, setAc
                     </div>
                 )}
 
-                {/* Auto-start behavioral callout — shown on step 0 only, and only if tour hasn't been completed before */}
-                {walkthroughStepIndex === 0 &&
-                  !helpSystem.wasWalkthroughCompleted(helpSystem.walkthroughId ?? '') && (
-                    <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
-                        <p className="text-[10px] text-amber-700 leading-snug">
-                            ⚠️ Auto-started: this tour fires once per screen. Dismiss anytime.
-                        </p>
-                    </div>
-                )}
-
                 {/* Navigation row */}
                 <div className="flex items-center justify-between gap-2">
                     {/* Skip Tour */}
