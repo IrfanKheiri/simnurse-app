@@ -24,8 +24,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab, rejectio
     return (
         <nav
             id="bottom-navigation-bar"
-            className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/80 backdrop-blur-md"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+            className="fixed bottom-0 left-1/2 z-50 w-full max-w-[440px] -translate-x-1/2 border-t border-slate-200 bg-white/80 backdrop-blur-md"
+            style={{ paddingBottom: 'var(--safe-area-bottom)' }}
         >
             <div
                 id="bottom-nav-buttons-container"

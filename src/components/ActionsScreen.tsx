@@ -4,6 +4,7 @@ import {
     Baby, Scissors, ScanLine, FlaskConical
 } from 'lucide-react';
 import ProcedureGuide from './ProcedureGuide';
+import { getInterventionBadgeLabel, getInterventionDisplayLabel } from '../lib/interventionLabels';
 
 export interface Action {
     id: string; // Must map exactly to InterventionDefinition keys in scenario JSON
@@ -684,6 +685,22 @@ interface ActionsScreenProps {
     disabled?: boolean;
 }
 
+type ActionPresentationState = 'available' | 'cooldown' | 'unavailable';
+
+interface ActionPresentationItem {
+    action: Action;
+    cooldownSec: number | null;
+    progressPct: number | null;
+    state: ActionPresentationState;
+}
+
+interface ActiveInterventionSummaryItem {
+    key: string;
+    label: string;
+    badgeLabel: string;
+    timerLabel: string;
+}
+
 function getCooldownRemaining(
     actionId: string,
     activeInterventions: { id: string; start_time: number; duration_sec?: number }[],
@@ -777,6 +794,192 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
         });
     }, [searchQuery, selectedCategory]);
 
+    const activeNowSummaries = useMemo<ActiveInterventionSummaryItem[]>(() => {
+        return activeInterventions
+            .map((intervention, index) => {
+                if (intervention.duration_sec !== undefined) {
+                    const remaining = intervention.duration_sec - (elapsedSec - intervention.start_time);
+                    if (remaining <= 0) {
+                        return null;
+                    }
+
+                    return {
+                        key: `${intervention.id}-${intervention.start_time}-${index}`,
+                        label: getInterventionDisplayLabel(intervention.id),
+                        badgeLabel: getInterventionBadgeLabel(intervention.id),
+                        timerLabel: `Intervention timer · ${formatCooldownTime(Math.ceil(remaining))}`,
+                    };
+                }
+
+                return {
+                    key: `${intervention.id}-${intervention.start_time}-${index}`,
+                    label: getInterventionDisplayLabel(intervention.id),
+                    badgeLabel: getInterventionBadgeLabel(intervention.id),
+                    timerLabel: 'Active now',
+                };
+            })
+            .filter((item): item is ActiveInterventionSummaryItem => item !== null);
+    }, [activeInterventions, elapsedSec]);
+
+    const actionPresentationItems = useMemo<ActionPresentationItem[]>(() => {
+        return filteredActions.map((action) => {
+            const cooldownSec = getCooldownRemaining(action.id, activeInterventions, elapsedSec);
+            const activeEntry = activeInterventions.find((intervention) => intervention.id === action.id);
+            const progressPct = cooldownSec !== null && activeEntry?.duration_sec !== undefined
+                ? ((activeEntry.duration_sec - cooldownSec) / activeEntry.duration_sec) * 100
+                : null;
+
+            return {
+                action,
+                cooldownSec,
+                progressPct,
+                state: disabled ? 'unavailable' : cooldownSec !== null ? 'cooldown' : 'available',
+            };
+        });
+    }, [activeInterventions, disabled, elapsedSec, filteredActions]);
+
+    const availableActionItems = actionPresentationItems.filter((item) => item.state === 'available');
+    const cooldownActionItems = actionPresentationItems.filter((item) => item.state === 'cooldown');
+    const unavailableActionItems = actionPresentationItems.filter((item) => item.state === 'unavailable');
+    const firstRenderedActionId = (disabled
+        ? unavailableActionItems[0]?.action.id
+        : availableActionItems[0]?.action.id ?? cooldownActionItems[0]?.action.id) ?? null;
+
+    const semanticSummaryCards = [
+        {
+            label: 'Available now',
+            count: disabled ? 0 : availableActionItems.length,
+            description: disabled ? 'Scenario complete' : 'Ready to open',
+            className: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+        },
+        {
+            label: 'Active now',
+            count: activeNowSummaries.length,
+            description: 'Affecting the patient',
+            className: 'border-indigo-200 bg-indigo-50 text-indigo-900',
+        },
+        {
+            label: 'Available again later',
+            count: disabled ? 0 : cooldownActionItems.length,
+            description: disabled ? 'Scenario complete' : 'Same action still active',
+            className: 'border-amber-200 bg-amber-50 text-amber-900',
+        },
+        {
+            label: 'Unavailable for another reason',
+            count: disabled ? unavailableActionItems.length : 0,
+            description: disabled ? 'Scenario complete' : 'None right now',
+            className: 'border-slate-200 bg-slate-100 text-slate-700',
+        },
+    ] as const;
+
+    const renderActionGroups = (
+        actionItems: ActionPresentationItem[],
+        state: ActionPresentationState,
+        sectionPrefix: string
+    ) => {
+        return CATEGORIES.map((category) => {
+            const categoryItems = actionItems.filter((item) => item.action.categoryId === category.id);
+            if (categoryItems.length === 0) return null;
+
+            const sectionId = sectionPrefix === 'available'
+                ? category.id === 'meds'
+                    ? 'actions-category-meds'
+                    : `category-group-${category.id}`
+                : `${sectionPrefix}-category-${category.id}`;
+
+            return (
+                <section key={`${sectionPrefix}-${category.id}`} id={sectionId} className="mb-8 last:mb-0">
+                    <header className="mb-4 flex items-center gap-3">
+                        <div className="rounded-lg bg-white p-2 text-slate-800 shadow-sm">
+                            <category.icon size={16} style={{ color: category.color }} />
+                        </div>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                            {category.label}
+                        </h3>
+                        <div className="ml-2 h-[1px] flex-1 bg-slate-100" aria-hidden="true" />
+                    </header>
+
+                    <menu className="m-0 space-y-3 p-0">
+                        {categoryItems.map(({ action, cooldownSec, progressPct }) => {
+                            const isCooldown = state === 'cooldown';
+                            const isUnavailable = state === 'unavailable';
+                            const isDisabled = isCooldown || isUnavailable;
+                            const stateBadgeClass = isCooldown
+                                ? 'bg-indigo-100 text-indigo-700'
+                                : isUnavailable
+                                    ? 'bg-slate-200 text-slate-600'
+                                    : 'bg-emerald-100 text-emerald-700';
+                            const secondaryBadgeClass = isCooldown
+                                ? 'bg-amber-100 text-amber-700'
+                                : isUnavailable
+                                    ? 'bg-slate-200 text-slate-500'
+                                    : 'bg-slate-100 text-slate-500';
+                            const cardClassName = isCooldown
+                                ? 'cursor-not-allowed border-indigo-200 bg-indigo-50/60'
+                                : isUnavailable
+                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100/80'
+                                    : 'border-slate-100 bg-white hover:border-medical-100 hover:shadow-premium active:scale-[0.98]';
+                            const supportingCopy = isCooldown
+                                ? 'Intervention timer still running. Only this same action is temporarily unavailable.'
+                                : isUnavailable
+                                    ? 'Scenario complete — no further actions are available.'
+                                    : suppressed[action.id]
+                                        ? 'Guide hidden for this action. Executing will apply it directly.'
+                                        : 'Open the procedure card to review the intervention.';
+
+                            return (
+                                <li key={action.id} id={action.id === firstRenderedActionId ? 'action-card-first' : undefined} className="list-none">
+                                    <button
+                                        id={`action-btn-${action.id}`}
+                                        type="button"
+                                        onClick={() => handleActionClick(action)}
+                                        disabled={isDisabled}
+                                        className={`relative group flex w-full scroll-mt-40 items-start gap-4 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all ${cardClassName}`}
+                                    >
+                                        <div className="flex min-w-0 flex-1 items-start gap-4 overflow-hidden">
+                                            <div
+                                                className="mt-0.5 shrink-0 rounded-xl p-3 transition-colors"
+                                                style={{ backgroundColor: `${action.color}15`, color: action.color }}
+                                            >
+                                                <action.icon size={20} />
+                                            </div>
+                                            <div className="flex min-h-[72px] min-w-0 flex-1 flex-col items-start justify-center">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${stateBadgeClass}`}>
+                                                        {isCooldown ? 'Active now' : isUnavailable ? 'Unavailable' : 'Available now'}
+                                                    </span>
+                                                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${secondaryBadgeClass}`}>
+                                                        {isCooldown
+                                                            ? `Available again in ${formatCooldownTime(cooldownSec ?? 0)}`
+                                                            : isUnavailable
+                                                                ? 'Scenario complete'
+                                                                : suppressed[action.id]
+                                                                    ? 'Execute directly'
+                                                                    : 'View card'}
+                                                    </span>
+                                                </div>
+                                                <span className="mt-2 line-clamp-2 text-sm font-bold leading-tight tracking-tight text-slate-700">
+                                                    {action.label}
+                                                </span>
+                                                <span className="mt-1 text-left text-xs leading-5 text-slate-500">
+                                                    {supportingCopy}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={18} className={`mt-0.5 shrink-0 transition-colors ${isDisabled ? 'text-slate-300' : 'text-slate-300 group-hover:text-medical-400'}`} />
+                                        {progressPct !== null && (
+                                            <div className="absolute bottom-0 left-0 h-1 rounded-b-2xl bg-indigo-400 transition-all" style={{ width: `${progressPct}%` }} />
+                                        )}
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </menu>
+                </section>
+            );
+        });
+    };
+
     const handleActionClick = (action: Action) => {
         const hiddenProcedures = readSuppressedProcedures();
         if (hiddenProcedures[action.id]) {
@@ -795,7 +998,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
     };
 
     return (
-        <section id="actions-screen-container" className="flex flex-col h-full bg-slate-50">
+        <section id="actions-screen-container" className="flex min-h-full flex-col bg-slate-50">
             {/* Header & Search */}
             <header id="actions-screen-header" className="sticky top-0 z-20 border-b border-slate-100 bg-white p-6 pb-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
@@ -834,7 +1037,7 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                 </form>
 
                 {/* Category filter pills — matches LibraryScreen protocol pill pattern */}
-                <div id="actions-categories" className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
+                <div id="actions-categories" className="mt-3 flex flex-wrap items-center gap-2 pb-1 sm:flex-nowrap sm:overflow-x-auto">
                     <button
                         type="button"
                         onClick={() => setSelectedCategory('All')}
@@ -870,82 +1073,132 @@ const ActionsScreen: React.FC<ActionsScreenProps> = ({
                 </div>
             )}
 
-            <article id="actions-list-container" className={`flex-1 overflow-y-auto px-6 pt-6 pb-4${disabled ? ' pointer-events-none opacity-50' : ''}`}>
-                {CATEGORIES.map(category => {
-                    const catActions = filteredActions.filter((a: Action) => a.categoryId === category.id);
-                    if (catActions.length === 0) return null;
+            <article id="actions-list-container" className={`flex-1 px-6 pt-6 pb-4${disabled ? ' pointer-events-none opacity-50' : ''}`}>
+                <section id="actions-live-summary" aria-label="Live action state summary" className="mb-8 space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        {semanticSummaryCards.map((card) => (
+                            <div key={card.label} className={`rounded-3xl border px-4 py-3 shadow-sm ${card.className}`}>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{card.label}</p>
+                                <p className="mt-2 text-2xl font-black leading-none">{card.count}</p>
+                                <p className="mt-1 text-xs font-medium opacity-80">{card.description}</p>
+                            </div>
+                        ))}
+                    </div>
 
-                    return (
-                        <section key={category.id} id={category.id === 'meds' ? 'actions-category-meds' : `category-group-${category.id}`} className="mb-8 last:mb-0">
-                            <header className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-white rounded-lg shadow-sm text-slate-800">
-                                    <category.icon size={16} style={{ color: category.color }} />
-                                </div>
-                                <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
-                                    {category.label}
+                    <section
+                        id="actions-current-interventions"
+                        aria-labelledby="actions-current-interventions-heading"
+                        className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <h2 id="actions-current-interventions-heading" className="text-sm font-black tracking-tight text-slate-800">
+                                    Current interventions
                                 </h2>
-                                <div className="flex-1 h-[1px] bg-slate-100 ml-2" aria-hidden="true" />
+                                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                                    {activeNowSummaries.length > 0
+                                        ? `${activeNowSummaries.length} intervention${activeNowSummaries.length === 1 ? '' : 's'} currently affecting the patient. Overlap remains visible here at a glance.`
+                                        : 'No interventions are affecting the patient right now.'}
+                                </p>
+                            </div>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                                Active now
+                            </span>
+                        </div>
+
+                        {activeNowSummaries.length > 0 ? (
+                            <ul className="mt-4 flex flex-wrap gap-2" aria-label="Current interventions summary">
+                                {activeNowSummaries.map((item) => (
+                                    <li
+                                        key={item.key}
+                                        className="flex items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-indigo-950 shadow-sm"
+                                    >
+                                        <span className="rounded-full bg-indigo-600 px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white">
+                                            {item.badgeLabel}
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-700">{item.label}</span>
+                                        <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                                            {item.timerLabel}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-xs font-medium text-slate-500">
+                                Active interventions will appear here while they continue affecting the patient.
+                            </p>
+                        )}
+                    </section>
+                </section>
+
+                {disabled ? (
+                    <section id="actions-state-unavailable-other" aria-labelledby="actions-state-unavailable-heading" className="mb-8">
+                        <header className="mb-4 flex items-end justify-between gap-3">
+                            <div>
+                                <h2 id="actions-state-unavailable-heading" className="text-lg font-black tracking-tight text-slate-700">
+                                    Unavailable for another reason
+                                </h2>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    Scenario complete — no further actions can be opened.
+                                </p>
+                            </div>
+                            <span className="rounded-full bg-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                                {unavailableActionItems.length}
+                            </span>
+                        </header>
+                        {renderActionGroups(unavailableActionItems, 'unavailable', 'unavailable')}
+                    </section>
+                ) : (
+                    <>
+                        <section id="actions-state-available-now" aria-labelledby="actions-state-available-heading" className="mb-8">
+                            <header className="mb-4 flex items-end justify-between gap-3">
+                                <div>
+                                    <h2 id="actions-state-available-heading" className="text-lg font-black tracking-tight text-slate-800">
+                                        Available now
+                                    </h2>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        These actions can be opened immediately.
+                                    </p>
+                                </div>
+                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                                    {availableActionItems.length}
+                                </span>
                             </header>
 
-                            <menu className="space-y-3 p-0 m-0">
-                                {catActions.map((action: Action, actionIdx: number) => {
-                                    const cooldownSec = getCooldownRemaining(action.id, activeInterventions, elapsedSec);
-                                    const activeEntry = activeInterventions.find(i => i.id === action.id);
-                                    const isOnCooldown = cooldownSec !== null;
-                                    const cooldownLabel = isOnCooldown ? `Available in ${formatCooldownTime(cooldownSec)}` : null;
-                                    const progressPct = cooldownSec !== null && activeEntry?.duration_sec !== undefined
-                                        ? ((activeEntry.duration_sec - cooldownSec) / activeEntry.duration_sec) * 100
-                                        : null;
-                                    return (
-                                        <li key={action.id} id={actionIdx === 0 && category.id === filteredActions[0]?.categoryId ? 'action-card-first' : undefined} className="list-none">
-                                            <button
-                                                id={`action-btn-${action.id}`}
-                                                type="button"
-                                                onClick={() => handleActionClick(action)}
-                                                disabled={isOnCooldown}
-                                                className={`relative group flex w-full items-start gap-4 overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all${isOnCooldown
-                                                    ? ' cursor-not-allowed border-slate-200 bg-slate-50'
-                                                    : ' border-slate-100 bg-white hover:border-medical-100 hover:shadow-premium active:scale-[0.98]'
-                                                }`}
-                                            >
-                                                <div className="flex min-w-0 flex-1 items-start gap-4 overflow-hidden">
-                                                    <div
-                                                        className="mt-0.5 shrink-0 rounded-xl p-3 transition-colors"
-                                                        style={{ backgroundColor: `${action.color}15`, color: action.color }}
-                                                    >
-                                                        <action.icon size={20} />
-                                                    </div>
-                                                    {/* R-16: line-clamp-2 instead of truncate; min-h-[56px] prevents layout shift */}
-                                                    <div className="flex min-h-[56px] min-w-0 flex-1 flex-col items-start justify-center">
-                                                        <span className="line-clamp-2 text-sm font-bold tracking-tight text-slate-700 leading-tight">{action.label}</span>
-                                                        {isOnCooldown ? (
-                                                            <div className="mt-2 flex w-full min-w-0 flex-col items-start gap-1.5">
-                                                                <span className="inline-flex max-w-full flex-wrap items-center rounded-full bg-slate-700 px-2.5 py-1 text-[10px] font-bold leading-none text-white">
-                                                                    {cooldownLabel}
-                                                                </span>
-                                                                <span className="max-w-full text-left text-xs leading-5 text-slate-500">
-                                                                    This action was recently used and cannot be repeated yet.
-                                                                </span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 transition-colors group-hover:text-medical-500">
-                                                                {suppressed[action.id] ? 'Execute Directly' : 'View Card'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <ChevronRight size={18} className={`mt-0.5 shrink-0 transition-colors ${isOnCooldown ? 'text-slate-300' : 'text-slate-300 group-hover:text-medical-400'}`} />
-                                                {progressPct !== null && (
-                                                    <div className="absolute bottom-0 left-0 h-1 rounded-b-2xl bg-medical-400 transition-all" style={{ width: `${progressPct}%` }} />
-                                                )}
-                                            </button>
-                                        </li>
-                                    );
-                                })}
-                            </menu>
+                            {availableActionItems.length > 0 ? (
+                                renderActionGroups(availableActionItems, 'available', 'available')
+                            ) : (
+                                <p className="rounded-3xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+                                    No filtered actions are currently available to open.
+                                </p>
+                            )}
                         </section>
-                    );
-                })}
+
+                        <section id="actions-state-available-later" aria-labelledby="actions-state-available-later-heading" className="mb-8">
+                            <header className="mb-4 flex items-end justify-between gap-3">
+                                <div>
+                                    <h2 id="actions-state-available-later-heading" className="text-lg font-black tracking-tight text-slate-800">
+                                        Available again later
+                                    </h2>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        These timed actions are still active, so only the same action is temporarily unavailable.
+                                    </p>
+                                </div>
+                                <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                                    {cooldownActionItems.length}
+                                </span>
+                            </header>
+
+                            {cooldownActionItems.length > 0 ? (
+                                renderActionGroups(cooldownActionItems, 'cooldown', 'cooldown')
+                            ) : (
+                                <p className="rounded-3xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+                                    No intervention timers are temporarily holding a same-action repeat right now.
+                                </p>
+                            )}
+                        </section>
+                    </>
+                )}
 
                 {filteredActions.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">

@@ -28,6 +28,7 @@ const reviewableAction: ActionFeedback = {
   name: 'Defibrillation Attempt',
   isCorrect: false,
   isDuplicate: false,
+  categoryLabel: 'Sequencing issue',
   comment: 'This intervention was attempted before the expected sequence step.',
   timestamp: 'T+00:20',
   reviewId: 'cpr',
@@ -184,5 +185,54 @@ describe('EvaluationSummary tier help', () => {
 
     expect(screen.getByRole('button', { name: /tier help/i })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+});
+
+describe('EvaluationSummary debrief wording', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders sequencing categories with expected-step guidance', () => {
+    render(
+      <EvaluationSummary
+        {...baseProps}
+        actions={[{
+          ...reviewableAction,
+          expectedActionLabel: 'CPR (High-Quality)',
+          expectedActionRationale: 'High-quality compressions maintain perfusion while the next protocol step is pending.',
+        }]}
+      />,
+    );
+
+    expect(screen.getByText('Sequencing issue')).toBeInTheDocument();
+    expect(screen.getByText('Expected step at this point:')).toBeInTheDocument();
+    expect(screen.getByText('CPR (High-Quality)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /review protocol/i })).toBeInTheDocument();
+  });
+
+  it('renders repeat timing categories without review guidance', () => {
+    render(
+      <EvaluationSummary
+        {...baseProps}
+        actions={[
+          {
+            id: 'action-2',
+            name: 'CPR (High-Quality)',
+            isCorrect: false,
+            isDuplicate: true,
+            categoryLabel: 'Repeated too early',
+            comment:
+              'This timed action was repeated before its active window ended. Only this same action was temporarily unavailable; other appropriate interventions could still overlap. Repeat available in approximately 10–13s.',
+            timestamp: 'T+00:35',
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Repeated too early')).toBeInTheDocument();
+    expect(screen.getByText(/other appropriate interventions could still overlap/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /review protocol/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Expected step at this point:')).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { getInterventionShortLabel } from './interventionLabels';
-import type { ActiveIntervention, Condition, Scenario } from '../types/scenario';
+import type { ActiveIntervention, Condition, PatientField, Scenario } from '../types/scenario';
 
 export type UrgencyLevel = 'low' | 'medium' | 'critical';
 
@@ -12,9 +12,21 @@ export interface UrgencyItem {
 }
 
 export const URGENCY_STRIP_HELP_TITLE = 'Urgency strip help';
-export const URGENCY_STRIP_HELP_INTRO = 'The urgency strip shows shared countdowns for failure risks and active intervention timers so you can see which time-sensitive task needs attention next.';
-export const URGENCY_STRIP_HELP_PRIORITY = 'Failure-risk pills appear before intervention timers. Red means act immediately, amber means plan your next action now, and slate means a lower-urgency reminder is active.';
-export const URGENCY_STRIP_HELP_EMPTY_STATE = 'If the strip is empty, there are no active time-based alerts yet.';
+export const URGENCY_STRIP_HELP_INTRO = 'The urgency strip separates patient-risk timers from intervention timers. Patient-risk pills show how long until the patient state worsens or the case fails. Intervention pills show a timed action that is still active; they do not mean every other action is blocked.';
+export const URGENCY_STRIP_HELP_PRIORITY = 'Patient-risk pills appear before intervention timers. Red signals immediate risk, amber signals a shorter remaining window, and slate marks a lower-urgency timer.';
+export const URGENCY_STRIP_HELP_EMPTY_STATE = 'If the strip is empty, there are no patient-risk or active intervention timers right now.';
+
+const FAILURE_VITAL_LABELS: Partial<Record<PatientField, string>> = {
+  hr: 'HR',
+  bp: 'BP',
+  spo2: 'SpO₂',
+  rr: 'RR',
+  pulsePresent: 'Pulse',
+  rhythm: 'Rhythm',
+  temp: 'Temperature',
+  etco2: 'ETCO₂',
+  glucose: 'Glucose',
+};
 
 export function getInterventionUrgency(remainingSec: number): UrgencyLevel {
   if (remainingSec < 10) return 'critical';
@@ -22,29 +34,29 @@ export function getInterventionUrgency(remainingSec: number): UrgencyLevel {
   return 'low';
 }
 
-export function getFailureConditionLabel(condition: Condition, remainingSec: number): string {
-  const secs = Math.ceil(remainingSec);
-
-  if (condition.elapsedSecGte !== undefined && !condition.vital) {
-    return `⏱ ~${secs}s left`;
-  }
-
+export function getFailureConditionLabel(condition: Condition): string {
   if (condition.vital) {
-    const vitalName = condition.vital === 'pulsePresent' ? 'Pulse' : condition.vital.toUpperCase();
-    return `⚠ ${vitalName} ~${secs}s`;
+    return `⚠ ${FAILURE_VITAL_LABELS[condition.vital] ?? condition.vital} risk`;
   }
 
-  return `⚠ ~${secs}s`;
+  return '⚠ Patient risk';
 }
 
 export function formatUrgencyItemAriaLabel(item: UrgencyItem): string {
   const severityLabel = item.urgency === 'critical' ? 'Critical' : 'Alert';
-  return `${severityLabel}: ${item.label} — ${Math.ceil(item.remainingSec)} seconds remaining`;
+  const kindLabel = item.type === 'failure' ? 'Patient timer' : 'Intervention timer';
+  const remainingCopy = item.type === 'failure'
+    ? `${Math.ceil(item.remainingSec)} seconds remaining`
+    : `${Math.ceil(item.remainingSec)} seconds until repeat`;
+  return `${severityLabel}: ${kindLabel} — ${item.label} — ${remainingCopy}`;
 }
 
 export function formatUrgencyItemTitle(item: UrgencyItem): string {
-  const kindLabel = item.type === 'failure' ? 'Failure risk' : 'Intervention';
-  return `${kindLabel}: ${item.label} — ${Math.ceil(item.remainingSec)}s remaining`;
+  const kindLabel = item.type === 'failure' ? 'Patient-risk timer' : 'Intervention active';
+  const remainingCopy = item.type === 'failure'
+    ? `${Math.ceil(item.remainingSec)}s remaining`
+    : `${Math.ceil(item.remainingSec)}s until repeat`;
+  return `${kindLabel}: ${item.label} — ${remainingCopy}`;
 }
 
 export function computeUrgencyItems(
@@ -70,7 +82,7 @@ export function computeUrgencyItems(
             items.push({
               key: `fail-hold-${index}`,
               type: 'failure',
-              label: getFailureConditionLabel(condition, remainingSec),
+              label: getFailureConditionLabel(condition),
               remainingSec,
               urgency: remainingSec < 10 ? 'critical' : 'medium',
             });
@@ -88,7 +100,7 @@ export function computeUrgencyItems(
           items.push({
             key: `fail-elapsed-${index}`,
             type: 'failure',
-            label: getFailureConditionLabel(condition, remainingSec),
+            label: getFailureConditionLabel(condition),
             remainingSec,
             urgency: remainingSec < 15 ? 'critical' : 'medium',
           });
@@ -104,7 +116,7 @@ export function computeUrgencyItems(
     items.push({
       key: `iv-${intervention.id}`,
       type: 'intervention',
-      label: getInterventionShortLabel(intervention.id),
+      label: `↻ ${getInterventionShortLabel(intervention.id)} active`,
       remainingSec,
       urgency: getInterventionUrgency(remainingSec),
     });

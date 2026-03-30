@@ -48,7 +48,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
         'bg-amber-500';
 
     return (
-        <section id="status-dashboard-container" className="flex flex-col h-full bg-slate-50">
+        <section id="status-dashboard-container" className="flex min-h-full flex-col bg-slate-50">
             {/* Header Area */}
             <header id="status-screen-header" className="p-6 pb-2">
                 <h1 className="text-2xl font-black text-slate-800 tracking-tight mb-1">Status</h1>
@@ -60,7 +60,7 @@ const StatusDashboard: React.FC<StatusDashboardProps> = ({
                 </p>
             </header>
 
-            <article className="flex-1 overflow-y-auto px-6 pt-2">
+            <article className="flex-1 px-6 pt-2 pb-4">
                 {/* FIX (ISSUE-16): Pass live rhythm & pulsePresent so the waveform reflects patient state */}
                 <ECGWaveform
                     rhythm={vitals?.rhythm ?? 'Sinus'}

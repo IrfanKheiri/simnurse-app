@@ -172,6 +172,57 @@ describe('useScenarioEngine', () => {
     expect(result.current.sequenceIndex).toBe(1);
   });
 
+  it('reports timed repeats as active without implying global blocking', () => {
+    const onEvent = vi.fn<(event: EngineEvent) => void>();
+    const { result } = renderHook(() => useScenarioEngine(mockScenario, onEvent));
+
+    act(() => {
+      result.current.applyIntervention('cpr');
+    });
+
+    act(() => {
+      result.current.applyIntervention('cpr');
+    });
+
+    expect(onEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'intervention',
+        intervention_id: 'cpr',
+        rejected: true,
+        message: 'Already active. Only this action is temporarily unavailable. Repeat available in approximately 10–13s.',
+      }),
+    );
+  });
+
+  it('reports permanent actions as already applied for the scenario', () => {
+    const permanentScenario: Scenario = {
+      ...mockScenario,
+      interventions: {
+        ...mockScenario.interventions,
+        establish_iv: {},
+      },
+    };
+    const onEvent = vi.fn<(event: EngineEvent) => void>();
+    const { result } = renderHook(() => useScenarioEngine(permanentScenario, onEvent));
+
+    act(() => {
+      result.current.applyIntervention('establish_iv');
+    });
+
+    act(() => {
+      result.current.applyIntervention('establish_iv');
+    });
+
+    expect(onEvent).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'intervention',
+        intervention_id: 'establish_iv',
+        rejected: true,
+        message: 'Already applied. This action stays in effect for this scenario.',
+      }),
+    );
+  });
+
   it('does not complete a shockable arrest before the terminal teaching step', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
 

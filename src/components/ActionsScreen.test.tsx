@@ -113,12 +113,17 @@ describe('ActionsScreen', () => {
     );
 
     const cprButton = getActionButton('Initiate CPR (High-Quality)');
+    const currentInterventions = screen.getByRole('list', { name: 'Current interventions summary' });
 
     expect(cprButton).toBeDisabled();
-    expect(within(cprButton).getByText('Available in 50s')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Available again later' })).toBeInTheDocument();
+    expect(within(cprButton).getByText('Active now')).toBeInTheDocument();
+    expect(within(cprButton).getByText('Available again in 50s')).toBeInTheDocument();
     expect(
-      within(cprButton).getByText('This action was recently used and cannot be repeated yet.')
+      within(cprButton).getByText('Intervention timer still running. Only this same action is temporarily unavailable.')
     ).toBeInTheDocument();
+    expect(within(currentInterventions).getByText('CPR (High-Quality)')).toBeInTheDocument();
+    expect(within(currentInterventions).getByText('Intervention timer · 50s')).toBeInTheDocument();
   });
 
   it('available actions do not render the cooldown treatment', () => {
@@ -133,9 +138,11 @@ describe('ActionsScreen', () => {
     const ivButton = getActionButton('Establish IV/IO Access');
 
     expect(ivButton).toBeEnabled();
-    expect(within(ivButton).queryByText(/Available in/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Available now' })).toBeInTheDocument();
+    expect(within(ivButton).getByText('Available now')).toBeInTheDocument();
+    expect(within(ivButton).queryByText(/Available again in/i)).not.toBeInTheDocument();
     expect(
-      within(ivButton).queryByText('This action was recently used and cannot be repeated yet.')
+      within(ivButton).queryByText('Intervention timer still running. Only this same action is temporarily unavailable.')
     ).not.toBeInTheDocument();
   });
 
@@ -173,13 +180,33 @@ describe('ActionsScreen', () => {
     const cprButton = getActionButton('Initiate CPR (High-Quality)');
     const defibrillateButton = getActionButton('Defibrillate (AED / Manual)');
     const epiButton = getActionButton('Epinephrine 1mg IV/IO');
+    const currentInterventions = screen.getByRole('list', { name: 'Current interventions summary' });
 
-    expect(within(cprButton).getByText('Available in 55s')).toBeInTheDocument();
-    expect(within(defibrillateButton).getByText('Available in 5s')).toBeInTheDocument();
-    expect(screen.getAllByText('This action was recently used and cannot be repeated yet.')).toHaveLength(2);
+    expect(within(cprButton).getByText('Available again in 55s')).toBeInTheDocument();
+    expect(within(defibrillateButton).getByText('Available again in 5s')).toBeInTheDocument();
+    expect(screen.getAllByText('Intervention timer still running. Only this same action is temporarily unavailable.')).toHaveLength(2);
     expect(cprButton).toBeDisabled();
     expect(defibrillateButton).toBeDisabled();
     expect(epiButton).toBeEnabled();
-    expect(within(epiButton).queryByText(/Available in/i)).not.toBeInTheDocument();
+    expect(within(epiButton).queryByText(/Available again in/i)).not.toBeInTheDocument();
+    expect(within(currentInterventions).getByText('CPR (High-Quality)')).toBeInTheDocument();
+    expect(within(currentInterventions).getByText('Defibrillate (AED/Manual)')).toBeInTheDocument();
+  });
+
+  it('shows a semantic state summary so action availability is easier to scan', () => {
+    render(
+      <ActionsScreen
+        applyIntervention={vi.fn()}
+        activeInterventions={[{ id: 'cpr', start_time: 0, duration_sec: 120 }]}
+        elapsedSec={70}
+      />
+    );
+
+    const summary = screen.getByRole('region', { name: 'Live action state summary' });
+
+    expect(within(summary).getByText('Available now')).toBeInTheDocument();
+    expect(within(summary).getAllByText('Active now').length).toBeGreaterThan(0);
+    expect(within(summary).getByText('Available again later')).toBeInTheDocument();
+    expect(within(summary).getByText('Unavailable for another reason')).toBeInTheDocument();
   });
 });

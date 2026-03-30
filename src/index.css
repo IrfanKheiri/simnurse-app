@@ -15,6 +15,15 @@
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color-scheme: light;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --app-header-height: 0px;
+  --bottom-nav-height: calc(56px + var(--safe-area-bottom));
+  --app-content-bottom-padding: calc(var(--bottom-nav-height) + 16px);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 *,

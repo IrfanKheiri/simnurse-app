@@ -67,6 +67,10 @@ const URGENCY_HELP_PANEL_POSITION = {
   viewportMargin: 16,
 } as const;
 
+function hasUrgencyItems(items: UrgencyItem[]): boolean {
+  return items.length > 0;
+}
+
 // ─── Timer pill colour ───────────────────────────────────────────────────────
 
 function timerPillClass(pct: number): string {
@@ -178,26 +182,39 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const hasMonitor = monitorState !== null && unlocked !== undefined;
   const suppressUrgencyHelp = hasMonitor && isInlineHelpSuppressed(inlineHelpBlockers);
+  const patientRiskItems = urgencyItems.filter((item) => item.type === 'failure');
+  const interventionTimerItems = urgencyItems.filter((item) => item.type === 'intervention');
+  const hasPatientRiskItems = hasUrgencyItems(patientRiskItems);
+  const hasInterventionTimerItems = hasUrgencyItems(interventionTimerItems);
+  const stripIsEmpty = !hasPatientRiskItems && !hasInterventionTimerItems;
+  const patientRiskSectionClasses = hasPatientRiskItems
+    ? 'border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-slate-900/20'
+    : 'border-slate-700/60 bg-slate-900/20';
+  const interventionSectionClasses = hasInterventionTimerItems
+    ? 'border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 to-slate-900/20'
+    : 'border-slate-700/60 bg-slate-900/20';
 
   return (
     <header id="app-header" className="sticky top-0 z-50 flex flex-col border-b border-slate-100 bg-white">
       {/* ── Top row: logo + timer pill + help ─────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-medical-500 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg shadow-medical-100">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+        <div data-header-brand className="flex min-w-0 items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-medical-500 text-xs font-black text-white shadow-lg shadow-medical-100">
             SN
           </div>
-          <span className="text-sm font-black text-slate-800 tracking-tight uppercase">SimNurse</span>
+          <span className="truncate text-xs font-black uppercase tracking-tight text-slate-800 sm:text-sm">SimNurse</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {/* Timer pill — only shown when a scenario is active */}
           {hasMonitor && timerPct !== null && (
             <span
-              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-mono font-bold tabular-nums ${timerPillClass(timerPct)}`}
-              aria-label={`Scenario elapsed time ${formatTimer(elapsedSec)}`}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${timerPillClass(timerPct)}`}
+              aria-label={`Scenario clock, ${formatTimer(elapsedSec)} elapsed`}
+              title="Scenario clock (elapsed time)"
             >
-              ⏱ {formatTimer(elapsedSec)}
+              <span className="text-[10px] uppercase tracking-[0.16em] opacity-80">Clock</span>
+              <span className="font-mono tabular-nums">T+{formatTimer(elapsedSec)}</span>
             </span>
           )}
 
@@ -226,16 +243,16 @@ const Header: React.FC<HeaderProps> = ({
       {hasMonitor && (
         <div id="mini-monitor" className="flex items-stretch bg-slate-900 text-white shadow-md">
           {/* HR */}
-          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5">
+          <div className="flex flex-1 flex-col items-center gap-0.5 px-1 py-1">
             <div className="flex items-center gap-1">
-              <span className="text-slate-300 text-[10px] font-semibold leading-none">HR</span>
+              <span className="text-[10px] font-semibold leading-none text-slate-300">HR</span>
               {unlocked!.hr && (() => {
                 const d = decayArrow(vitalDecayRates.hr);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
               })()}
             </div>
             <span
-              className={`font-mono text-base leading-none ${
+              className={`font-mono text-sm leading-none ${
                 unlocked!.hr
                   ? vitalValueClass(hrUrgency(monitorState!.hr), 'text-green-400')
                   : 'text-slate-600'
@@ -246,16 +263,16 @@ const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* BP */}
-          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
+          <div className="flex flex-1 flex-col items-center gap-0.5 border-l border-slate-700 px-1 py-1">
             <div className="flex items-center gap-1">
-              <span className="text-slate-300 text-[10px] font-semibold leading-none">BP</span>
+              <span className="text-[10px] font-semibold leading-none text-slate-300">BP</span>
               {unlocked!.bp && (() => {
                 const d = decayArrow(vitalDecayRates.bp);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
               })()}
             </div>
             <span
-              className={`font-mono text-base leading-none ${
+              className={`font-mono text-sm leading-none ${
                 unlocked!.bp
                   ? vitalValueClass(bpSysUrgency(monitorState!.bp), 'text-blue-400')
                   : 'text-slate-600'
@@ -266,16 +283,16 @@ const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* SpO₂ */}
-          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
+          <div className="flex flex-1 flex-col items-center gap-0.5 border-l border-slate-700 px-1 py-1">
             <div className="flex items-center gap-1">
-              <span className="text-slate-300 text-[10px] font-semibold leading-none">SpO₂</span>
+              <span className="text-[10px] font-semibold leading-none text-slate-300">SpO₂</span>
               {unlocked!.spo2 && (() => {
                 const d = decayArrow(vitalDecayRates.spo2);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
               })()}
             </div>
             <span
-              className={`font-mono text-base leading-none ${
+              className={`font-mono text-sm leading-none ${
                 unlocked!.spo2
                   ? vitalValueClass(spo2Urgency(monitorState!.spo2), 'text-cyan-400')
                   : 'text-slate-600'
@@ -286,16 +303,16 @@ const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* RR */}
-          <div className="flex flex-col items-center flex-1 py-1.5 px-1 gap-0.5 border-l border-slate-700">
+          <div className="flex flex-1 flex-col items-center gap-0.5 border-l border-slate-700 px-1 py-1">
             <div className="flex items-center gap-1">
-              <span className="text-slate-300 text-[10px] font-semibold leading-none">RR</span>
+              <span className="text-[10px] font-semibold leading-none text-slate-300">RR</span>
               {unlocked!.rr && (() => {
                 const d = decayArrow(vitalDecayRates.rr);
                 return d ? <span className={`text-[9px] font-bold leading-none ${d.cls}`}>{d.arrow}</span> : null;
               })()}
             </div>
             <span
-              className={`font-mono text-base leading-none ${
+              className={`font-mono text-sm leading-none ${
                 unlocked!.rr
                   ? vitalValueClass(rrUrgency(monitorState!.rr), 'text-violet-400')
                   : 'text-slate-600'
@@ -310,36 +327,112 @@ const Header: React.FC<HeaderProps> = ({
       {/* ── UrgencyStrip: merged failure proximity + intervention countdowns ── */}
       {/* Render always when monitor is active so walkthrough can target it */}
       {hasMonitor && (
-        <div className="flex items-stretch bg-slate-800">
-          <div className="relative min-w-0 flex-1">
-            <div
-              id="urgency-strip"
-              className="flex items-center gap-1.5 overflow-x-auto bg-slate-800 px-3 scrollbar-none transition-all duration-200 py-1.5 min-h-[2rem]"
-              aria-label="Timing alerts"
-            >
-              {urgencyItems.map((item) => (
-                <span
-                  key={item.key}
-                  role="status"
-                  tabIndex={0}
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
-                  aria-label={formatUrgencyItemAriaLabel(item)}
-                  title={formatUrgencyItemTitle(item)}
-                >
-                  {item.label}
-                  <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
+        <div className={`bg-slate-800 px-3 ${stripIsEmpty ? 'py-1.5' : 'py-2'}`}>
+          <div className={`flex items-center justify-between gap-2 ${stripIsEmpty ? 'mb-1' : 'mb-1.5'}`}>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Live timers
+              </p>
+              {stripIsEmpty && (
+                <span className="rounded-full border border-slate-700/80 bg-slate-900/30 px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+                  Quiet now
                 </span>
-              ))}
+              )}
             </div>
-            {urgencyItems.length > 0 && (
-              <div
-                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-slate-800 to-transparent"
-                aria-hidden="true"
-              />
-            )}
-          </div>
-          <div className="flex shrink-0 items-center pr-2">
             <UrgencyStripHelpToggle suppressed={suppressUrgencyHelp} />
+          </div>
+
+          <div
+            id="urgency-strip"
+            data-strip-state={stripIsEmpty ? 'empty' : 'active'}
+            className={`min-w-0 ${stripIsEmpty ? 'grid grid-cols-2 gap-2' : 'space-y-2'}`}
+            aria-label="Patient-risk and intervention timers"
+          >
+            {stripIsEmpty ? (
+              <>
+                <section className="rounded-2xl border border-slate-700/60 bg-slate-900/30 px-2.5 py-2">
+                  <p id="patient-risk-strip-heading" className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                    Patient risk
+                  </p>
+                  <div id="patient-risk-timers" className="mt-1 flex items-center" aria-label="Patient-risk timers">
+                    <span className="rounded-full border border-slate-700/80 bg-slate-950/50 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                      All clear
+                    </span>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-slate-700/60 bg-slate-900/30 px-2.5 py-2">
+                  <p id="intervention-timers-heading" className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                    Intervention timers
+                  </p>
+                  <div id="intervention-timers" className="mt-1 flex items-center" aria-label="Intervention timers">
+                    <span className="rounded-full border border-slate-700/80 bg-slate-950/50 px-2 py-0.5 text-[11px] font-semibold text-slate-200">
+                      None active
+                    </span>
+                  </div>
+                </section>
+              </>
+            ) : (
+              <>
+                <section className={`rounded-2xl border px-3 ${patientRiskSectionClasses} ${hasPatientRiskItems ? 'py-2' : 'py-1.5'}`}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p id="patient-risk-strip-heading" className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-100">
+                      Patient risk
+                    </p>
+                    {hasPatientRiskItems && (
+                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-100">
+                        {patientRiskItems.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div id="patient-risk-timers" className="flex items-center gap-1.5 overflow-x-auto scrollbar-none" aria-label="Patient-risk timers">
+                    {patientRiskItems.map((item) => (
+                      <span
+                        key={item.key}
+                        role="status"
+                        tabIndex={0}
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
+                        aria-label={formatUrgencyItemAriaLabel(item)}
+                        title={formatUrgencyItemTitle(item)}
+                      >
+                        {item.label}
+                        <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
+                      </span>
+                    ))}
+                  </div>
+                </section>
+
+                <section className={`rounded-2xl border px-3 ${interventionSectionClasses} ${hasInterventionTimerItems ? 'py-2' : 'py-1.5'}`}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p id="intervention-timers-heading" className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100">
+                      Intervention timers
+                    </p>
+                    {hasInterventionTimerItems && (
+                      <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
+                        {interventionTimerItems.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div id="intervention-timers" className="flex items-center gap-1.5 overflow-x-auto scrollbar-none" aria-label="Intervention timers">
+                    {interventionTimerItems.map((item) => (
+                      <span
+                        key={item.key}
+                        role="status"
+                        tabIndex={0}
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold leading-tight ${URGENCY_PILL[item.urgency]}`}
+                        aria-label={formatUrgencyItemAriaLabel(item)}
+                        title={formatUrgencyItemTitle(item)}
+                      >
+                        {item.label}
+                        <span className="font-mono opacity-80">{Math.ceil(item.remainingSec)}s</span>
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
           </div>
         </div>
       )}

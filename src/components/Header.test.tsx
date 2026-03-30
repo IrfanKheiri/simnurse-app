@@ -26,14 +26,14 @@ const urgencyItems: UrgencyItem[] = [
   {
     key: 'fail-elapsed-1',
     type: 'failure',
-    label: '⏱ ~20s left',
+    label: '⚠ Patient risk',
     remainingSec: 20,
     urgency: 'medium',
   },
   {
     key: 'iv-cpr',
     type: 'intervention',
-    label: 'CPR',
+    label: '↻ CPR active',
     remainingSec: 9,
     urgency: 'critical',
   },
@@ -68,7 +68,7 @@ describe('Header urgency strip help', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(trigger).toHaveFocus();
     expect(
-      screen.getByText(/The urgency strip shows shared countdowns for failure risks and active intervention timers/i)
+      screen.getByText(/The urgency strip separates patient-risk timers from intervention timers/i)
     ).toBeInTheDocument();
     const panel = screen.getByRole('note');
     const urgencyStrip = container.querySelector('#urgency-strip');
@@ -76,6 +76,8 @@ describe('Header urgency strip help', () => {
     expect(panel).toHaveClass('fixed');
     expect(document.body).toContainElement(panel);
     expect(urgencyStrip).not.toContainElement(panel);
+    expect(within(urgencyStrip as HTMLElement).getByText('Patient risk')).toBeInTheDocument();
+    expect(within(urgencyStrip as HTMLElement).getByText('Intervention timers')).toBeInTheDocument();
 
     await user.click(document.body);
 
@@ -101,9 +103,9 @@ describe('Header urgency strip help', () => {
 
     await user.tab({ shift: true });
 
-    const urgencyPill = screen.getByRole('status', { name: /critical: cpr/i });
+    const contextualHelpButton = screen.getByRole('button', { name: /open contextual help panel/i });
 
-    expect(urgencyPill).toHaveFocus();
+    expect(contextualHelpButton).toHaveFocus();
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
@@ -140,16 +142,25 @@ describe('Header urgency strip help', () => {
     );
 
     const emptyStrip = container.querySelector('#urgency-strip');
+    const patientRiskLane = container.querySelector('#patient-risk-timers');
+    const interventionLane = container.querySelector('#intervention-timers');
     const trigger = screen.getByRole('button', { name: /urgency help/i });
 
     expect(emptyStrip).not.toBeNull();
+    expect(patientRiskLane).not.toBeNull();
+    expect(interventionLane).not.toBeNull();
     expect(trigger).toBeInTheDocument();
     expect(emptyStrip).not.toContainElement(trigger);
-    expect(within(emptyStrip as HTMLElement).queryAllByRole('status')).toHaveLength(0);
+    expect(screen.getByText('Live timers')).toBeInTheDocument();
+    expect(screen.getByText('Quiet now')).toBeInTheDocument();
+    expect(screen.getByText('Clock')).toBeInTheDocument();
+    expect(emptyStrip).toHaveAttribute('data-strip-state', 'empty');
+    expect(within(patientRiskLane as HTMLElement).getByText('All clear')).toBeInTheDocument();
+    expect(within(interventionLane as HTMLElement).getByText('None active')).toBeInTheDocument();
 
     await user.click(trigger);
 
-    expect(screen.getByText(/If the strip is empty, there are no active time-based alerts yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/If the strip is empty, there are no patient-risk or active intervention timers right now/i)).toBeInTheDocument();
 
     const overflowItems = Array.from({ length: 8 }, (_, index) => ({
       key: `item-${index}`,
@@ -162,9 +173,15 @@ describe('Header urgency strip help', () => {
     rerender(<Header {...baseProps} urgencyItems={overflowItems} />);
 
     const overflowStrip = container.querySelector('#urgency-strip');
+    const overflowPatientRiskLane = container.querySelector('#patient-risk-timers');
+    const overflowInterventionLane = container.querySelector('#intervention-timers');
 
     expect(overflowStrip).not.toBeNull();
+    expect(overflowStrip).toHaveAttribute('data-strip-state', 'active');
     expect(overflowStrip).not.toContainElement(screen.getByRole('button', { name: /urgency help/i }));
     expect(within(overflowStrip as HTMLElement).getAllByRole('status')).toHaveLength(overflowItems.length);
+    expect(within(overflowPatientRiskLane as HTMLElement).getAllByRole('status')).toHaveLength(4);
+    expect(within(overflowInterventionLane as HTMLElement).getAllByRole('status')).toHaveLength(4);
+    expect(screen.queryByText('Quiet now')).not.toBeInTheDocument();
   });
 });

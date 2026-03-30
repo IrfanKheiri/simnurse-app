@@ -45,8 +45,8 @@ export const GLOBAL_QUICK_TIPS: HelpTip[] = [
   },
   {
     id: 'global-tip-2',
-    heading: 'Timing Windows',
-    body: "Each intervention has a time window defined by the scenario's urgency conditions. Acting too late (after a failure timer expires) ends the scenario regardless of the intervention being otherwise correct. The urgency strip tells you how long you have.",
+    heading: 'Timing Semantics',
+    body: 'Patient urgency and intervention timing are separate. A patient-risk pill shows how long you have before the patient worsens or the case fails. An active intervention timer means that intervention is still in effect, so only that same timed action is temporarily unavailable until its repeat window clears. Other appropriate interventions can still overlap if they fit the patient state and protocol.',
   },
   {
     id: 'global-tip-3',
@@ -171,7 +171,7 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
         targetId: 'begin-scenario-btn',
         title: 'Begin the Case',
         content:
-          'When ready, tap Begin Scenario. The clock starts immediately — your interventions must be fast and in the correct order.',
+          'When ready, tap Begin Scenario. The clock starts immediately. Timed actions may stay active while other appropriate interventions overlap, but only the same timed action stays unavailable until its repeat window clears.',
         position: 'top',
       },
     ],
@@ -463,7 +463,7 @@ export const HELP_CONTENT: Record<AppContext, ContextHelpContent> = {
       {
         id: 'debrief-ctx-1',
         heading: 'Reading Your Timeline',
-        body: 'Each intervention is listed with a timestamp (T+mm:ss). Green = correct sequence. Red = incorrect. Amber = duplicate/cooldown (not penalised in score). Compare timestamps to identify response-time gaps.',
+        body: 'Each intervention is listed with a timestamp (T+mm:ss). Green = accepted. Amber = the same action was repeated too early or was already in effect. Red = sequencing, rhythm, or patient-state mismatch. Compare timestamps to identify response-time gaps without assuming that one active timer blocked every other intervention.',
       },
       {
         id: 'debrief-ctx-2',

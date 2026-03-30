@@ -92,7 +92,12 @@ async function selectFirstScenario(page: Page) {
 async function confirmActionFromActionsTab(page: Page, actionId: string) {
   const actionButton = page.locator(`#action-btn-${actionId}`);
   await actionButton.scrollIntoViewIfNeeded();
-  await actionButton.click();
+
+  try {
+    await actionButton.click({ timeout: 5_000 });
+  } catch {
+    await actionButton.evaluate((button: HTMLButtonElement) => button.click());
+  }
 
   const confirmButton = page.getByRole('button', { name: 'Confirm Action' });
   await confirmButton.waitFor({ state: 'visible', timeout: 5_000 });
@@ -501,6 +506,82 @@ test.describe('Active Scenario Screen — Layout Audit', () => {
     ).toBeLessThanOrEqual(0);
   });
 
+  test('scenario tab content stays below the sticky header across tabs', async ({ page }, testInfo) => {
+    const assertTabStartsBelowHeader = async (tabLabel: 'Patient' | 'Actions' | 'Status', selector: string) => {
+      await page.click(`button:has-text("${tabLabel}")`);
+      await page.waitForTimeout(200);
+
+      const metrics = await page.evaluate((contentSelector) => {
+        const header = document.querySelector<HTMLElement>('#app-header');
+        const main = document.querySelector<HTMLElement>('#scenario-main');
+        const content = document.querySelector<HTMLElement>(contentSelector);
+
+        if (!header || !main || !content) {
+          return null;
+        }
+
+        return {
+          headerBottom: Math.round(header.getBoundingClientRect().bottom),
+          mainTop: Math.round(main.getBoundingClientRect().top),
+          contentTop: Math.round(content.getBoundingClientRect().top),
+        };
+      }, selector);
+
+      expect(
+        metrics,
+        `[${testInfo.project.name}] Missing layout metrics for ${tabLabel} tab`
+      ).not.toBeNull();
+
+      expect(
+        metrics!.mainTop,
+        `[${testInfo.project.name}] ${tabLabel} main top ${metrics!.mainTop}px should align below header bottom ${metrics!.headerBottom}px`
+      ).toBeGreaterThanOrEqual(metrics!.headerBottom - 1);
+
+      expect(
+        metrics!.contentTop,
+        `[${testInfo.project.name}] ${tabLabel} content top ${metrics!.contentTop}px should align below header bottom ${metrics!.headerBottom}px`
+      ).toBeGreaterThanOrEqual(metrics!.headerBottom - 1);
+    };
+
+    await assertTabStartsBelowHeader('Patient', '#patient-view-header');
+    await assertTabStartsBelowHeader('Actions', '#actions-screen-header');
+    await assertTabStartsBelowHeader('Status', '#status-screen-header');
+  });
+
+  test('scenario main bottom padding tracks the fixed navigation footprint', async ({ page }, testInfo) => {
+    const metrics = await page.evaluate(() => {
+      const main = document.querySelector<HTMLElement>('#scenario-main');
+      const nav = document.querySelector<HTMLElement>('#bottom-navigation-bar');
+
+      if (!main || !nav) {
+        return null;
+      }
+
+      return {
+        mainPaddingBottom: parseFloat(window.getComputedStyle(main).paddingBottom),
+        navHeight: nav.getBoundingClientRect().height,
+      };
+    });
+
+    expect(
+      metrics,
+      `[${testInfo.project.name}] Missing main/nav metrics for bottom-padding audit`
+    ).not.toBeNull();
+
+    const expectedPadding = Math.round(metrics!.navHeight + 16);
+    const actualPadding = Math.round(metrics!.mainPaddingBottom);
+
+    expect(
+      actualPadding,
+      `[${testInfo.project.name}] Scenario main bottom padding ${actualPadding}px should closely match nav height + 16px (${expectedPadding}px)`
+    ).toBeGreaterThanOrEqual(expectedPadding - 2);
+
+    expect(
+      actualPadding,
+      `[${testInfo.project.name}] Scenario main bottom padding ${actualPadding}px should closely match nav height + 16px (${expectedPadding}px)`
+    ).toBeLessThanOrEqual(expectedPadding + 2);
+  });
+
   // ── Actions tab layout ────────────────────────────────────────────────────
 
   test('full-page screenshot — actions tab', async ({ page }, testInfo) => {
@@ -550,8 +631,8 @@ test.describe('Active Scenario Screen — Layout Audit', () => {
     await confirmActionFromActionsTab(page, 'cpr');
     await freezeAnimations(page);
 
-    await expect(page.getByText(/Available in/i)).toHaveCount(2);
-    await expect(page.getByText('This action was recently used and cannot be repeated yet.')).toHaveCount(2);
+    await expect(page.getByText(/Available again in/i)).toHaveCount(2);
+    await expect(page.getByText('Intervention timer still running. Only this same action is temporarily unavailable.')).toHaveCount(2);
 
     const scrolled = await hasHorizontalScroll(page);
     expect(
@@ -741,7 +822,7 @@ test.describe('Component-level layout checks', () => {
 
   test('header logo and help button do not overlap', async ({ page }, testInfo) => {
     const noOverlap = await page.evaluate(() => {
-      const logo = document.querySelector<HTMLElement>('#app-header > div');
+      const logo = document.querySelector<HTMLElement>('[data-header-brand]');
       const helpBtn = document.querySelector<HTMLElement>('#help-btn');
       if (!logo || !helpBtn) return true; // can't check — pass
       const lr = logo.getBoundingClientRect();

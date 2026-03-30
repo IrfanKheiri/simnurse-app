@@ -363,6 +363,28 @@ describe('context', () => {
     localStorage.clear();
   });
 
+  it('provides generic timing semantics in preview onboarding and quick-reference help', () => {
+    const { result } = renderHook(() => useHelpSystem('preview_modal' as AppContext));
+
+    expect(result.current.content.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'preview-step-4',
+          content: expect.stringContaining('other appropriate interventions overlap'),
+        }),
+      ]),
+    );
+
+    expect(result.current.content.quickTips).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          heading: 'Timing Semantics',
+          body: expect.stringContaining('only that same timed action is temporarily unavailable'),
+        }),
+      ]),
+    );
+  });
+
   it('wasWalkthroughCompleted returns false initially', () => {
     localStorage.removeItem(COMPLETED_KEY);
     const { result } = renderLibraryHook();

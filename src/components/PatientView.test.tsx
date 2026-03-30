@@ -74,8 +74,8 @@ describe('PatientView', () => {
 
     const interventionSection = screen.getByRole('region', { name: 'Active interventions' });
     expect(within(interventionSection).getByText('Interventions')).toBeInTheDocument();
-    expect(within(interventionSection).getByText('No active interventions')).toBeInTheDocument();
-    expect(within(interventionSection).getByText('No active interventions right now.')).toBeInTheDocument();
+    expect(within(interventionSection).getByText('No interventions affecting the patient now')).toBeInTheDocument();
+    expect(within(interventionSection).getByText('No interventions are affecting the patient right now.')).toBeInTheDocument();
     expect(within(interventionSection).queryByRole('list')).not.toBeInTheDocument();
   });
 
@@ -93,7 +93,7 @@ describe('PatientView', () => {
     );
 
     const interventionSection = screen.getByRole('region', { name: 'Active interventions' });
-    expect(within(interventionSection).getByText('1 active intervention')).toBeInTheDocument();
+    expect(within(interventionSection).getByText('1 intervention affecting the patient now')).toBeInTheDocument();
     expect(within(interventionSection).getByText(getInterventionBadgeLabel('oxygen_nrb'))).toBeInTheDocument();
     expect(within(interventionSection).queryByText(/\+\d+ more/i)).not.toBeInTheDocument();
   });
@@ -108,7 +108,7 @@ describe('PatientView', () => {
       expect(within(interventionList).getByText(getInterventionBadgeLabel(id))).toBeInTheDocument();
     });
 
-    expect(within(interventionSection).getByText('3 active interventions')).toBeInTheDocument();
+    expect(within(interventionSection).getByText('3 interventions affecting the patient now')).toBeInTheDocument();
     expect(within(interventionSection).queryByText(/\+\d+ more/i)).not.toBeInTheDocument();
     expect(within(interventionSection).queryByText(/Showing 3 of/i)).not.toBeInTheDocument();
   });
@@ -124,7 +124,7 @@ describe('PatientView', () => {
     });
 
     expect(within(interventionList).getByText('+1 more')).toBeInTheDocument();
-    expect(within(interventionSection).getByText('Showing 3 of 4 active interventions.')).toBeInTheDocument();
+    expect(within(interventionSection).getByText('Showing 3 of 4 interventions affecting the patient now.')).toBeInTheDocument();
     expect(within(interventionList).queryByText(getInterventionBadgeLabel('aed_attach'))).not.toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe('PatientView', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(trigger).toHaveFocus();
-    expect(within(panel).getByText(/This section tracks the interventions currently affecting the patient/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/This section lists the interventions affecting the patient right now/i)).toBeInTheDocument();
     expect(helpList).toHaveTextContent(getInterventionDisplayLabel('cpr'));
     expect(panel).toHaveClass('fixed');
     expect(document.body).toContainElement(panel);
@@ -235,7 +235,7 @@ describe('PatientView', () => {
 
     const emptyPanel = screen.getByRole('note');
 
-    expect(within(emptyPanel).getByText(/No active interventions are being tracked right now/i)).toBeInTheDocument();
+    expect(within(emptyPanel).getByText(/No interventions are affecting the patient right now/i)).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 

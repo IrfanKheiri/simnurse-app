@@ -168,12 +168,12 @@ const InterventionHelpToggle: React.FC<{
                         Active Intervention Help
                     </p>
                     <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                        This section tracks the interventions currently affecting the patient. When more than three are active, the section keeps the remainder in the +N more summary pill.
+                        This section lists the interventions affecting the patient right now. A timed intervention can stay active here while other appropriate actions remain available. When more than three are active, the remainder stays in the +N more summary pill.
                     </p>
                     {hasInterventions ? (
                         <>
                             <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                                Current interventions
+                                Active now
                             </p>
                             <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600" aria-label="Current intervention help details">
                                 {interventionLabels.map((label) => (
@@ -183,7 +183,7 @@ const InterventionHelpToggle: React.FC<{
                         </>
                     ) : (
                         <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-                            No active interventions are being tracked right now.
+                            No interventions are affecting the patient right now.
                         </p>
                     )}
                 </div>,
@@ -265,7 +265,7 @@ const PatientView: React.FC<PatientViewProps> = ({
 
     return (
         // FIX (P1-G): Add aria-label to the section
-        <section id="patient-view-container" aria-label="Patient View" className="flex flex-col bg-slate-50">
+        <section id="patient-view-container" aria-label="Patient View" className="flex min-h-full flex-col bg-slate-50">
             {/* Header Bar */}
             {/* FIX (P1-C): Active interventions moved here as a third in-flow row */}
             <header id="patient-view-header" className="p-6 pb-2 z-10">
@@ -315,8 +315,8 @@ const PatientView: React.FC<PatientViewProps> = ({
                             </p>
                             <p className="mt-1 text-xs font-medium text-slate-500">
                                 {hasActiveInterventions
-                                    ? `${interventionCount} active intervention${interventionCount === 1 ? '' : 's'}`
-                                    : 'No active interventions'}
+                                    ? `${interventionCount} intervention${interventionCount === 1 ? '' : 's'} affecting the patient now`
+                                    : 'No interventions affecting the patient now'}
                             </p>
                         </div>
 
@@ -362,7 +362,7 @@ const PatientView: React.FC<PatientViewProps> = ({
 
                             {overflowCount > 0 && (
                                 <p className="mt-3 text-[11px] font-medium leading-relaxed text-slate-500">
-                                    Showing {visibleInterventions.length} of {interventionCount} active interventions.
+                                    Showing {visibleInterventions.length} of {interventionCount} interventions affecting the patient now.
                                 </p>
                             )}
                         </>
@@ -371,7 +371,7 @@ const PatientView: React.FC<PatientViewProps> = ({
                             id="active-interventions-empty-state"
                             className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/90 px-3 py-2 text-xs font-medium text-slate-500"
                         >
-                            No active interventions right now.
+                            No interventions are affecting the patient right now.
                         </p>
                     )}
                 </section>

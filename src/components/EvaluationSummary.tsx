@@ -20,6 +20,7 @@ export interface ActionFeedback {
     name: string;
     isCorrect: boolean;
     comment: string;
+    categoryLabel?: string;
     timestamp: string;
     reviewId?: string;
     isDuplicate?: boolean;
@@ -223,11 +224,11 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                 </span>
                 <span className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
-                    Duplicate
+                    Repeat / already active
                 </span>
                 <span className="flex items-center gap-1.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
-                    Incorrect
+                    Protocol / state issue
                 </span>
             </div>
         <div className="relative pb-8">
@@ -275,6 +276,17 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                                     <div className="p-1 text-red-600"><AlertCircle size={16} /></div>
                                 )}
                             </div>
+                            {action.categoryLabel && (
+                                <div className="mb-2">
+                                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                                        action.isDuplicate
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-red-100 text-red-700'
+                                    }`}>
+                                        {action.categoryLabel}
+                                    </span>
+                                </div>
+                            )}
                             <p className={`text-xs leading-relaxed mb-3 ${
                                 action.isCorrect
                                     ? 'text-slate-500'
@@ -305,7 +317,7 @@ const Timeline: React.FC<{ actions: ActionFeedback[]; onReviewProcedure: (id: st
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-0.5">
-                                                Correct step:
+                                                Expected step at this point:
                                             </p>
                                             <p className="text-xs font-bold text-slate-800 leading-snug mb-1">
                                                 {action.expectedActionLabel}

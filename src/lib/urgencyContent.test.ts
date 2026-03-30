@@ -32,14 +32,14 @@ describe('urgencyContent', () => {
     );
 
     expect(items).toHaveLength(2);
-    expect(items[0]).toMatchObject({ type: 'failure', label: '⏱ ~20s left', urgency: 'medium' });
-    expect(items[1]).toMatchObject({ type: 'intervention', label: 'CPR', urgency: 'medium' });
+    expect(items[0]).toMatchObject({ type: 'failure', label: '⚠ Patient risk', urgency: 'medium' });
+    expect(items[1]).toMatchObject({ type: 'intervention', label: '↻ CPR active', urgency: 'medium' });
   });
 
   it('formats accessibility and title copy from shared urgency wording helpers', () => {
     const [item] = computeUrgencyItems(scenario, {}, 180, []);
 
-    expect(formatUrgencyItemAriaLabel(item)).toBe('Alert: ⏱ ~20s left — 20 seconds remaining');
-    expect(formatUrgencyItemTitle(item)).toBe('Failure risk: ⏱ ~20s left — 20s remaining');
+    expect(formatUrgencyItemAriaLabel(item)).toBe('Alert: Patient timer — ⚠ Patient risk — 20 seconds remaining');
+    expect(formatUrgencyItemTitle(item)).toBe('Patient-risk timer: ⚠ Patient risk — 20s remaining');
   });
 });

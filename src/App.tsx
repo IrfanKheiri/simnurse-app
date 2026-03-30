@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ActiveIntervention, AdjustableVital, CompletionEvent, EngineEvent, ManualEndEvent, Scenario, SessionEvent, SessionLogEvent, StateChangeEvent } from './types/scenario';
 import CheatOverlay from './components/CheatOverlay';
 import ActionsScreen from './components/ActionsScreen';
@@ -19,13 +19,24 @@ import { useHelpSystem } from './hooks/useHelpSystem';
 import type { AppContext } from './data/helpContent';
 import { useScenarioEngine } from './hooks/useScenarioEngine';
 import { db } from './lib/db';
+import { getDebriefFeedbackMeta } from './lib/debriefFeedback';
 import { getInterventionDisplayLabel, getInterventionShortLabel } from './lib/interventionLabels';
 import type { InlineHelpBlockers } from './lib/inlineHelp';
 import { computeUrgencyItems } from './lib/urgencyContent';
 import { calculateScenarioProgress } from './lib/scenarioProgress';
 
-const APP_SHELL_CLASS =
-  'relative flex flex-col min-h-screen w-full max-w-[440px] box-border mx-auto border-x border-slate-100 bg-slate-50 font-sans shadow-2xl';
+const APP_SHELL_BASE_CLASS =
+  'relative flex flex-col w-full max-w-[440px] box-border mx-auto border-x border-slate-100 bg-slate-50 font-sans shadow-2xl';
+
+const APP_SHELL_CLASS = `${APP_SHELL_BASE_CLASS} min-h-screen`;
+
+const ACTIVE_SCENARIO_SHELL_CLASS = `${APP_SHELL_BASE_CLASS} h-[100dvh] min-h-[100dvh] overflow-hidden`;
+
+const ACTIVE_SCENARIO_SHELL_STYLE = {
+  '--app-header-height': '0px',
+  '--bottom-nav-height': 'calc(56px + var(--safe-area-bottom))',
+  '--app-content-bottom-padding': 'calc(var(--bottom-nav-height) + 16px)',
+} as CSSProperties;
 
 function cloneScenario(scenario: Scenario): Scenario {
   return structuredClone(scenario);
@@ -112,18 +123,15 @@ function buildActionFeedback(
 
   for (const log of interventionLogs) {
     const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
-    const isDuplicateMsg =
-      log.details.rejected === true &&
-      typeof log.details.message === 'string' &&
-      log.details.message.startsWith('Already');
+    const feedbackMeta = getDebriefFeedbackMeta(log.details.rejected, log.details.message);
 
     if (!log.details.rejected) {
       // Accepted — advance seqPos if this action matched the expected step
       if (seqPos < sequence.length && sequence[seqPos] === log.details.intervention_id) {
         seqPos++;
       }
-    } else if (!isDuplicateMsg) {
-      // Any non-duplicate rejection — record what should have been done at this sequence position
+    } else if (feedbackMeta.supportsExpectedAction) {
+      // Sequence-related rejection — record what should have been done at this sequence position
       if (seqPos < sequence.length) {
         const expectedId = sequence[seqPos];
         const expectedDef = scenario?.interventions[expectedId];
@@ -139,10 +147,7 @@ function buildActionFeedback(
   // Map pass: construct ActionFeedback array
   return interventionLogs.map((log) => {
     const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
-    const isDuplicate =
-      log.details.rejected === true &&
-      typeof log.details.message === 'string' &&
-      log.details.message.startsWith('Already');
+    const feedbackMeta = getDebriefFeedbackMeta(log.details.rejected, log.details.message);
 
     const expected = expectedMap.get(logId);
 
@@ -150,10 +155,11 @@ function buildActionFeedback(
       id: logId,
       name: getInterventionDisplayLabel(log.details.intervention_id),
       isCorrect: !log.details.rejected,
-      comment: log.details.message,
+      comment: feedbackMeta.comment,
+      ...(feedbackMeta.categoryLabel ? { categoryLabel: feedbackMeta.categoryLabel } : {}),
       timestamp: formatTimestamp(log.sim_time_sec),
-      reviewId: log.details.rejected && !isDuplicate ? log.details.intervention_id : undefined,
-      ...(isDuplicate ? { isDuplicate: true } : {}),
+      reviewId: log.details.rejected && feedbackMeta.supportsExpectedAction ? log.details.intervention_id : undefined,
+      ...(feedbackMeta.isDuplicate ? { isDuplicate: true } : {}),
       ...(expected ? {
         expectedActionLabel: expected.label,
         ...(expected.rationale ? { expectedActionRationale: expected.rationale } : {}),
@@ -199,6 +205,7 @@ function buildSessionLogEvent(
 
 function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active: boolean) => void }) {
   const { showToast } = useToast();
+  const appShellRef = useRef<HTMLDivElement | null>(null);
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('patient');
@@ -518,9 +525,44 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     setShowSummary(true);
   }, [persistEvent, status]);
 
+  const syncScenarioShellLayout = useCallback(() => {
+    const shell = appShellRef.current;
+
+    if (!shell) {
+      return;
+    }
+
+    const headerHeight = shell.querySelector<HTMLElement>('#app-header')?.offsetHeight ?? 0;
+    const bottomNavHeight = shell.querySelector<HTMLElement>('#bottom-navigation-bar')?.offsetHeight ?? 0;
+    const contentBottomPadding = bottomNavHeight > 0 ? bottomNavHeight + 16 : 16;
+
+    shell.style.setProperty('--app-header-height', `${headerHeight}px`);
+    shell.style.setProperty('--bottom-nav-height', `${bottomNavHeight}px`);
+    shell.style.setProperty('--app-content-bottom-padding', `${contentBottomPadding}px`);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!activeScenario || showSummary) {
+      return;
+    }
+
+    syncScenarioShellLayout();
+  });
+
+  useEffect(() => {
+    if (!activeScenario || showSummary) {
+      return;
+    }
+
+    syncScenarioShellLayout();
+
+    window.addEventListener('resize', syncScenarioShellLayout);
+    return () => window.removeEventListener('resize', syncScenarioShellLayout);
+  }, [activeScenario, showSummary, syncScenarioShellLayout]);
+
   if (!activeScenario) {
     return (
-      <div id="app-shell" className={APP_SHELL_CLASS}>
+      <div id="app-shell" ref={appShellRef} className={APP_SHELL_CLASS}>
         <Header
           onHelpClick={handleHelpClick}
           walkthroughCompleted={helpSystem.wasWalkthroughCompleted(helpSystem.content.walkthroughId)}
@@ -537,7 +579,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
 
   if (showSummary) {
     return (
-      <div id="app-shell" className={APP_SHELL_CLASS}>
+      <div id="app-shell" ref={appShellRef} className={APP_SHELL_CLASS}>
         <EvaluationSummary
           score={score}
           actions={evalActions}
@@ -570,7 +612,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
   }
 
   return (
-    <div id="app-shell" className={APP_SHELL_CLASS}>
+    <div id="app-shell" ref={appShellRef} className={ACTIVE_SCENARIO_SHELL_CLASS} style={ACTIVE_SCENARIO_SHELL_STYLE}>
       <Header
         onHelpClick={handleHelpClick}
         walkthroughCompleted={helpSystem.wasWalkthroughCompleted(helpSystem.content.walkthroughId)}
@@ -592,9 +634,13 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         />
       )}
 
-      <main className="flex-1 overflow-y-auto pb-24">
+      <main
+        id="scenario-main"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain"
+        style={{ paddingBottom: 'var(--app-content-bottom-padding)' }}
+      >
         {activeTab === 'patient' && (
-          <div key="patient" className="tab-enter h-full">
+          <div key="patient" className="tab-enter min-h-full">
             {/* R-2: pass unlocked so badge opacity reflects vitals-unlock state */}
             <PatientView
               onFinish={() => void handleManualFinish()}
@@ -606,7 +652,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           </div>
         )}
         {activeTab === 'actions' && (
-          <div key="actions" className="tab-enter h-full">
+          <div key="actions" className="tab-enter min-h-full">
             <ActionsScreen
               applyIntervention={applyIntervention}
               initialActionIdToReview={reviewActionId}
@@ -618,7 +664,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
           </div>
         )}
         {activeTab === 'status' && (
-          <div key="status" className="tab-enter h-full">
+          <div key="status" className="tab-enter min-h-full">
             <StatusDashboard
               vitals={vitals}
               unlocked={unlocked}

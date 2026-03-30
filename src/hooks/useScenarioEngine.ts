@@ -445,7 +445,7 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
             type: 'intervention',
             intervention_id: interventionId,
             rejected: true,
-            message: `Cannot perform: requires ${definition.requires_rhythm.join(' or ')} rhythm. Current rhythm is ${state.displayState.rhythm}.`,
+            message: `Not appropriate for the current rhythm. Requires ${definition.requires_rhythm.join(' or ')}. Current rhythm: ${state.displayState.rhythm}.`,
           },
         ],
       };
@@ -465,7 +465,7 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
             type: 'intervention',
             intervention_id: interventionId,
             rejected: true,
-            message: `Already applied and active for this scenario.`,
+            message: 'Already applied. This action stays in effect for this scenario.',
           },
         ],
       };
@@ -489,7 +489,7 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
             type: 'intervention',
             intervention_id: interventionId,
             rejected: true,
-            message: `Already in progress. Available again in approximately ${remainingSec}–${nextTickSec}s.`,
+            message: `Already active. Only this action is temporarily unavailable. Repeat available in approximately ${remainingSec}–${nextTickSec}s.`,
           },
         ],
       };
