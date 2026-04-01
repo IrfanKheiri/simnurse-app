@@ -20,6 +20,7 @@ import type { AppContext } from './data/helpContent';
 import { useScenarioEngine } from './hooks/useScenarioEngine';
 import { db } from './lib/db';
 import { getDebriefFeedbackMeta } from './lib/debriefFeedback';
+import { deriveDebriefSummary } from './lib/debriefScoring';
 import { getInterventionDisplayLabel, getInterventionShortLabel } from './lib/interventionLabels';
 import type { InlineHelpBlockers } from './lib/inlineHelp';
 import { computeUrgencyItems } from './lib/urgencyContent';
@@ -110,7 +111,50 @@ function isInterventionLog(log: SessionLogEvent): log is Extract<SessionLogEvent
   return log.event_type === 'intervention';
 }
 
-function buildActionFeedback(
+interface ExpectedActionInfo {
+  interventionId: string;
+  label: string;
+  rationale: string | undefined;
+}
+
+function getExpectedActionFromInterventionIds(
+  interventionIds: string[],
+  scenario: Scenario | null,
+): ExpectedActionInfo | null {
+  if (interventionIds.length !== 1) {
+    return null;
+  }
+
+  const interventionId = interventionIds[0];
+  const expectedDef = scenario?.interventions[interventionId];
+
+  return {
+    interventionId,
+    label: getInterventionDisplayLabel(interventionId),
+    rationale: expectedDef?.rationale,
+  };
+}
+
+function getExpectedActionFromStructuredMetadata(
+  log: Extract<SessionLogEvent, { event_type: 'intervention' }>,
+  scenario: Scenario | null,
+): ExpectedActionInfo | null | undefined {
+  const stateAwareAvailableInterventionIds = log.details.state_aware_available_intervention_ids;
+
+  if (Array.isArray(stateAwareAvailableInterventionIds)) {
+    return getExpectedActionFromInterventionIds(stateAwareAvailableInterventionIds, scenario);
+  }
+
+  const availableInterventionIds = log.details.available_intervention_ids;
+
+  if (Array.isArray(availableInterventionIds)) {
+    return getExpectedActionFromInterventionIds(availableInterventionIds, scenario);
+  }
+
+  return undefined;
+}
+
+export function buildActionFeedback(
   logs: SessionLogEvent[],
   scenario: Scenario | null,
 ): ActionFeedback[] {
@@ -119,7 +163,7 @@ function buildActionFeedback(
 
   // Replay pass: compute expected action at each rejected step
   let seqPos = 0;
-  const expectedMap = new Map<string, { label: string; rationale: string | undefined }>();
+  const expectedMap = new Map<string, ExpectedActionInfo>();
 
   for (const log of interventionLogs) {
     const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
@@ -130,15 +174,26 @@ function buildActionFeedback(
       if (seqPos < sequence.length && sequence[seqPos] === log.details.intervention_id) {
         seqPos++;
       }
-    } else if (feedbackMeta.supportsExpectedAction) {
-      // Sequence-related rejection — record what should have been done at this sequence position
-      if (seqPos < sequence.length) {
-        const expectedId = sequence[seqPos];
-        const expectedDef = scenario?.interventions[expectedId];
-        expectedMap.set(logId, {
-          label: getInterventionDisplayLabel(expectedId),
-          rationale: expectedDef?.rationale,
-        });
+    } else {
+      const structuredExpectedAction = feedbackMeta.categoryLabel === 'Sequencing issue'
+        ? getExpectedActionFromStructuredMetadata(log, scenario)
+        : undefined;
+
+      if (structuredExpectedAction !== undefined) {
+        if (structuredExpectedAction) {
+          expectedMap.set(logId, structuredExpectedAction);
+        }
+      } else if (feedbackMeta.supportsExpectedAction) {
+        // Legacy fallback — replay authored expected_sequence only when structured metadata is absent.
+        if (seqPos < sequence.length) {
+          const expectedId = sequence[seqPos];
+          const expectedDef = scenario?.interventions[expectedId];
+          expectedMap.set(logId, {
+            interventionId: expectedId,
+            label: getInterventionDisplayLabel(expectedId),
+            rationale: expectedDef?.rationale,
+          });
+        }
       }
       // seqPos does NOT advance on rejection
     }
@@ -150,6 +205,7 @@ function buildActionFeedback(
     const feedbackMeta = getDebriefFeedbackMeta(log.details.rejected, log.details.message);
 
     const expected = expectedMap.get(logId);
+    const hasExpectedGuidance = expected !== undefined;
 
     return {
       id: logId,
@@ -158,7 +214,9 @@ function buildActionFeedback(
       comment: feedbackMeta.comment,
       ...(feedbackMeta.categoryLabel ? { categoryLabel: feedbackMeta.categoryLabel } : {}),
       timestamp: formatTimestamp(log.sim_time_sec),
-      reviewId: log.details.rejected && feedbackMeta.supportsExpectedAction ? log.details.intervention_id : undefined,
+      reviewId: log.details.rejected && !feedbackMeta.isDuplicate && (hasExpectedGuidance || feedbackMeta.supportsExpectedAction)
+        ? log.details.intervention_id
+        : undefined,
       ...(feedbackMeta.isDuplicate ? { isDuplicate: true } : {}),
       ...(expected ? {
         expectedActionLabel: expected.label,
@@ -168,7 +226,7 @@ function buildActionFeedback(
   });
 }
 
-function buildSessionLogEvent(
+export function buildSessionLogEvent(
   event: SessionEvent,
   session_id: string,
   scenario_id: string,
@@ -185,15 +243,14 @@ function buildSessionLogEvent(
     case 'start':
       return { ...base, event_type: 'start', details: { message: event.message, snapshot: event.snapshot } };
     case 'intervention':
-      return {
-        ...base,
-        event_type: 'intervention',
-        details: {
-          intervention_id: event.intervention_id,
-          message: event.message,
-          rejected: event.rejected,
-        },
-      };
+      {
+        const { type: _type, ...details } = event;
+        return {
+          ...base,
+          event_type: 'intervention',
+          details: { ...details },
+        };
+      }
     case 'state_change':
       return { ...base, event_type: 'state_change', details: { message: event.message, changes: event.changes } };
     case 'completion':
@@ -351,7 +408,7 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     [persistEvent, showToast],
   );
 
-  const { state: vitals, status, elapsedSec, applyIntervention, activeInterventions, sequenceIndex, successHoldStarts, failureHoldStarts } = useScenarioEngine(
+  const { state: vitals, status, elapsedSec, applyIntervention, activeInterventions, sequenceIndex, requiredStepCount, successHoldStarts, failureHoldStarts } = useScenarioEngine(
     activeScenario,
     handleEngineEvent,
   );
@@ -382,27 +439,17 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     };
   }, [sessionId, showSummary]);
 
-  const score = useMemo(() => {
-    const correctActions = evalActions.filter((a) => a.isCorrect).length;
-    const sequenceErrors = evalActions.filter((a) => !a.isCorrect && !a.isDuplicate).length;
-
-    // For failed outcomes: unexecuted required protocol steps count as omission errors.
-    // Without this guard, applying 1 correct action before a failure on a 5-step protocol = 100%.
-    // Manual endings do NOT apply this penalty — the learner chose to end early.
-    const expectedTotal = activeScenario?.expected_sequence?.length ?? 0;
-    const missedSteps =
-      scenarioOutcome === 'failed'
-        ? Math.max(0, expectedTotal - correctActions)
-        : 0;
-
-    const totalScoredActions = correctActions + sequenceErrors + missedSteps;
-    if (totalScoredActions === 0) return 0;
-    return Math.round((correctActions / totalScoredActions) * 100);
-  }, [evalActions, scenarioOutcome, activeScenario]);
+  const debriefSummary = useMemo(() => deriveDebriefSummary({
+    actions: evalActions,
+    outcome: scenarioOutcome,
+    scenario: activeScenario,
+    completedRequiredSteps: sequenceIndex,
+    requiredStepCount,
+  }), [evalActions, scenarioOutcome, activeScenario, sequenceIndex, requiredStepCount]);
 
   const scenarioProgressPct = useMemo(() => (
-    calculateScenarioProgress(activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts).totalScore
-  ), [activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts]);
+    calculateScenarioProgress(activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts, requiredStepCount).totalScore
+  ), [activeScenario, vitals, elapsedSec, sequenceIndex, successHoldStarts, requiredStepCount]);
 
   const urgencyItems = useMemo(
     () => computeUrgencyItems(activeScenario, failureHoldStarts, elapsedSec, activeInterventions),
@@ -489,27 +536,6 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     };
   }, [cheatModeEnabled, activeScenario, showSummary]);
 
-  const clinicalConclusion = useMemo(() => {
-    const correctActions = evalActions.filter((action) => action.isCorrect).length;
-    const rejectedActions = evalActions.length - correctActions;
-
-    if (evalActions.length === 0) {
-      return scenarioOutcome === 'manual'
-        ? 'The scenario was ended manually before any interventions were recorded.'
-        : 'No interventions were recorded during this scenario.';
-    }
-
-    if (scenarioOutcome === 'success') {
-      return `The patient was stabilized after ${evalActions.length} interventions. ${correctActions} intervention(s) were clinically appropriate.${rejectedActions > 0 ? ` ${rejectedActions} intervention(s) were rejected and should be reviewed.` : ''}`;
-    }
-
-    if (scenarioOutcome === 'failed') {
-      return `The patient deteriorated despite ${evalActions.length} recorded interventions. ${correctActions} intervention(s) were appropriate.${rejectedActions > 0 ? ` ${rejectedActions} intervention(s) were rejected and likely delayed recovery.` : ''}`;
-    }
-
-    return `The scenario ended manually after ${evalActions.length} recorded interventions. ${correctActions} intervention(s) were appropriate. Review the sequence before attempting the case again.`;
-  }, [evalActions, scenarioOutcome]);
-
   const handleHelpClick = useCallback(() => {
     helpSystem.openPanel();
   }, [helpSystem]);
@@ -581,10 +607,10 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     return (
       <div id="app-shell" ref={appShellRef} className={APP_SHELL_CLASS}>
         <EvaluationSummary
-          score={score}
+          score={debriefSummary.score}
           actions={evalActions}
           actionsLoading={evalActionsLoading}
-          clinicalConclusion={clinicalConclusion}
+          clinicalConclusion={debriefSummary.clinicalConclusion}
           outcome={scenarioOutcome}
           conclusion={activeScenario?.conclusion}
           onHelpClick={() => helpSystem.openPanel()}

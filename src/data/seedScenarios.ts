@@ -16,7 +16,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'adult_vfib_arrest_witnessed',
     title: 'Adult VFib Arrest (Witnessed)',
     patient: { name: 'James Harlow', age: '58yo', gender: 'M' },
-    meta: { difficulty: 'Advanced', domain: 'Cardiac', estimatedDurationSec: 900, protocol: 'ACLS' },
+    meta: { difficulty: 'Advanced', domain: 'Cardiac', estimatedDurationSec: 900, protocol: 'ACLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Patient achieved ROSC following successful defibrillation and CPR. Transferred to ICU for post-arrest care and targeted temperature management.',
     initial_state: {
       hr: 0,
@@ -132,7 +132,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'adult_pulseless_vtach',
     title: 'Adult Pulseless VTach (Ischemic)',
     patient: { name: 'Derek Patel', age: '64yo', gender: 'M' },
-    meta: { difficulty: 'Advanced', domain: 'Cardiac', estimatedDurationSec: 900, protocol: 'ACLS' },
+    meta: { difficulty: 'Advanced', domain: 'Cardiac', estimatedDurationSec: 900, protocol: 'ACLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Pulseless VTach terminated with defibrillation; ROSC achieved. Patient transferred to cardiac ICU for monitoring and investigation of ischemic cause.',
     initial_state: {
       hr: 0,
@@ -376,7 +376,8 @@ export const seedScenarios: Scenario[] = [
   },
 
   // Scenario 7 — adult_unstable_bradycardia
-  // Changes: expected_sequence updated, atropine_1mg→atropine_0_5mg with success_chance 0.8→0.6, transcutaneous_pacing added
+  // Changes: expected_sequence updated, atropine_1mg→atropine_0_5mg with success_chance 0.8→0.6, transcutaneous_pacing added,
+  //   route-based pilot added with optional pacing branch activated after IV access
   // Medical accuracy fix: added establish_iv between oxygen_nrb and atropine_0_5mg — atropine is an
   //   IV drug; AHA 2020 ACLS bradycardia algorithm requires IV/IO access before any pharmacological intervention
   {
@@ -384,7 +385,7 @@ export const seedScenarios: Scenario[] = [
     title: 'Adult Unstable Bradycardia',
     patient: { name: 'Walter Burns', age: '67yo', gender: 'M' },
     meta: { difficulty: 'Intermediate', domain: 'Cardiac', estimatedDurationSec: 600, protocol: 'ACLS' },
-    conclusion: 'Symptomatic bradycardia stabilized with atropine and transcutaneous pacing. Cardiology consulted for consideration of permanent pacemaker implantation.',
+    conclusion: 'Symptomatic bradycardia stabilized with ACLS therapy. Cardiology consulted for ongoing rhythm management and consideration of permanent pacemaker implantation if clinically indicated.',
     initial_state: {
       hr: 35,
       bp: '70/40',
@@ -396,6 +397,19 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [{ vital: 'bp', modifier: -1, interval_sec: 60 }],
     expected_sequence: ['oxygen_nrb', 'establish_iv', 'atropine_0_5mg', 'transcutaneous_pacing'],
+    protocol: {
+      primary: {
+        steps: ['oxygen_nrb', 'establish_iv', 'atropine_0_5mg'],
+      },
+      branches: [
+        {
+          route_id: 'pacing_optional_branch',
+          activation: { after_intervention: 'establish_iv' },
+          required: false,
+          steps: ['transcutaneous_pacing'],
+        },
+      ],
+    },
     interventions: {
       establish_iv: {
         duration_sec: 60,
@@ -450,6 +464,19 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['vagal_maneuver', 'establish_iv', 'adenosine_6mg', 'synchronized_cardioversion'],
+    protocol: {
+      primary: {
+        steps: ['vagal_maneuver', 'establish_iv', 'adenosine_6mg'],
+      },
+      branches: [
+        {
+          route_id: 'post_adenosine_optional_branch',
+          activation: { after_intervention: 'adenosine_6mg' },
+          required: false,
+          steps: ['synchronized_cardioversion'],
+        },
+      ],
+    },
     interventions: {
       vagal_maneuver: {
         duration_sec: 30,
@@ -507,6 +534,19 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [{ vital: 'bp', modifier: -1, interval_sec: 20, decay_type: 'linear' }],
     expected_sequence: ['synchronized_cardioversion', 'establish_iv', 'amiodarone_150mg_stable'],
+    protocol: {
+      primary: {
+        steps: ['synchronized_cardioversion'],
+      },
+      branches: [
+        {
+          route_id: 'post_cardioversion_optional_branch',
+          activation: { after_intervention: 'synchronized_cardioversion' },
+          required: false,
+          steps: ['establish_iv', 'amiodarone_150mg_stable'],
+        },
+      ],
+    },
     interventions: {
       establish_iv: {
         duration_sec: 60,
@@ -563,6 +603,18 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['left_uterine_displacement', 'cpr', 'defibrillate', 'establish_iv', 'epinephrine_1mg'],
+    protocol: {
+      primary: {
+        steps: ['left_uterine_displacement', 'cpr', 'defibrillate', 'establish_iv', 'epinephrine_1mg'],
+      },
+      rescues: [
+        {
+          route_id: 'pmcd_rescue',
+          activation: { after_state_change: 'pmcd_window_open' },
+          steps: ['perimortem_csection'],
+        },
+      ],
+    },
     interventions: {
       left_uterine_displacement: {
         duration_sec: 30,
@@ -925,7 +977,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'pediatric_pulseless_vfib',
     title: 'Pediatric Pulseless Arrest (VFib)',
     patient: { name: 'Sophie Grant', age: '7yo', gender: 'F' },
-    meta: { difficulty: 'Advanced', domain: 'Pediatric', estimatedDurationSec: 900, protocol: 'PALS' },
+    meta: { difficulty: 'Advanced', domain: 'Pediatric', estimatedDurationSec: 900, protocol: 'PALS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Paediatric VFib arrest terminated with defibrillation and PALS medications. ROSC achieved; patient transferred to PICU for post-arrest care and neurological assessment.',
     initial_state: {
       hr: 0,
@@ -986,7 +1038,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'bls_adult_cardiac_arrest_bystander',
     title: 'Adult Cardiac Arrest — Bystander CPR',
     patient: { name: 'George Marsh', age: '54yo', gender: 'M' },
-    meta: { difficulty: 'Beginner', domain: 'Cardiac', estimatedDurationSec: 600, protocol: 'BLS' },
+    meta: { difficulty: 'Beginner', domain: 'Cardiac', estimatedDurationSec: 600, protocol: 'BLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Bystander CPR and AED use achieved ROSC before EMS arrival. Timely high-quality CPR and early defibrillation were the key factors in survival.',
     initial_state: {
       hr: 0,
@@ -1072,7 +1124,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'bls_adult_two_rescuer_cpr',
     title: 'Adult Cardiac Arrest — Two-Rescuer CPR',
     patient: { name: 'Patricia Lane', age: '62yo', gender: 'F' },
-    meta: { difficulty: 'Intermediate', domain: 'Cardiac', estimatedDurationSec: 720, protocol: 'BLS' },
+    meta: { difficulty: 'Intermediate', domain: 'Cardiac', estimatedDurationSec: 720, protocol: 'BLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Two-rescuer CPR with coordinated role switching and AED use achieved ROSC. Effective teamwork and minimal compression interruptions were critical to outcome.',
     initial_state: {
       hr: 0,
@@ -1171,7 +1223,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'bls_adult_aed_public_access',
     title: 'Adult Cardiac Arrest — Public AED',
     patient: { name: 'Howard Bell', age: '49yo', gender: 'M' },
-    meta: { difficulty: 'Beginner', domain: 'Cardiac', estimatedDurationSec: 480, protocol: 'BLS' },
+    meta: { difficulty: 'Beginner', domain: 'Cardiac', estimatedDurationSec: 480, protocol: 'BLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Public AED use with prompt bystander activation achieved ROSC. Early defibrillation within minutes of collapse is the strongest determinant of survival from shockable rhythms.',
     initial_state: {
       hr: 0,
@@ -1268,7 +1320,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'bls_child_cardiac_arrest',
     title: 'Pediatric Cardiac Arrest — Child CPR (Witnessed)',
     patient: { name: 'Tyler Morris', age: '6yo', gender: 'M' },
-    meta: { difficulty: 'Intermediate', domain: 'Pediatric', estimatedDurationSec: 600, protocol: 'BLS' },
+    meta: { difficulty: 'Intermediate', domain: 'Pediatric', estimatedDurationSec: 600, protocol: 'BLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Paediatric cardiac arrest resolved following high-quality CPR and AED defibrillation. Child admitted to PICU; early intervention by bystander rescuer improved neurological outcome.',
     initial_state: {
       hr: 0,
@@ -1357,7 +1409,7 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'bls_child_two_rescuer_cpr',
     title: 'Pediatric Cardiac Arrest — Two-Rescuer Child',
     patient: { name: 'Avery Johnson', age: '4yo', gender: 'F' },
-    meta: { difficulty: 'Intermediate', domain: 'Pediatric', estimatedDurationSec: 600, protocol: 'BLS' },
+    meta: { difficulty: 'Intermediate', domain: 'Pediatric', estimatedDurationSec: 600, protocol: 'BLS', completionPolicy: 'strict_sequence_required' },
     conclusion: 'Two-rescuer paediatric CPR with 15:2 ratio and BVM ventilation achieved ROSC. Role switching every 2 minutes maintained compression quality throughout the resuscitation.',
     initial_state: {
       hr: 0,

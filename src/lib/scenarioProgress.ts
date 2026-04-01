@@ -150,6 +150,7 @@ export function calculateScenarioProgress(
   elapsedSec: number,
   sequenceIndex: number,
   successHoldStarts: Record<string, number>,
+  requiredStepCount?: number,
 ): ScenarioProgressDetails {
   if (!scenario || !state) {
     return {
@@ -159,14 +160,15 @@ export function calculateScenarioProgress(
     };
   }
 
-  const hasProtocol = Array.isArray(scenario.expected_sequence) && scenario.expected_sequence.length > 0;
+  const protocolStepCount = requiredStepCount ?? scenario.expected_sequence?.length ?? 0;
+  const hasProtocol = protocolStepCount > 0;
   const hasOutcome = scenario.success_conditions.length > 0;
 
   const protocolWeight = hasProtocol && hasOutcome ? 0.5 : hasProtocol ? 1 : 0;
   const outcomeWeight = hasOutcome && hasProtocol ? 0.5 : hasOutcome ? 1 : 0;
 
   const protocolScore = hasProtocol
-    ? clampPercent((sequenceIndex / scenario.expected_sequence!.length) * 100)
+    ? clampPercent((sequenceIndex / protocolStepCount) * 100)
     : 0;
 
   const outcomeScore = hasOutcome

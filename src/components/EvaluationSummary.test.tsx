@@ -52,14 +52,14 @@ describe('EvaluationSummary tier help', () => {
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
     expect(
-      screen.getByText(/Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone/i)
+      screen.getByText(/missed required steps can also lower the score if the run ends before protocol completion/i)
     ).toBeInTheDocument();
 
     await user.click(trigger);
 
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(
-      screen.queryByText(/Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone/i)
+      screen.queryByText(/missed required steps can also lower the score if the run ends before protocol completion/i)
     ).not.toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe('EvaluationSummary tier help', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveFocus();
     expect(
-      screen.queryByText(/Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone/i)
+      screen.queryByText(/missed required steps can also lower the score if the run ends before protocol completion/i)
     ).not.toBeInTheDocument();
   });
 
@@ -132,7 +132,7 @@ describe('EvaluationSummary tier help', () => {
     await user.click(screen.getByRole('button', { name: /tier help/i }));
 
     expect(
-      screen.getByText(/Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone/i)
+      screen.getByText(/missed required steps can also lower the score if the run ends before protocol completion/i)
     ).toBeInTheDocument();
 
     rerender(
@@ -145,7 +145,7 @@ describe('EvaluationSummary tier help', () => {
 
     expect(screen.queryByRole('button', { name: /tier help/i })).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone/i)
+      screen.queryByText(/missed required steps can also lower the score if the run ends before protocol completion/i)
     ).not.toBeInTheDocument();
 
     rerender(
@@ -171,7 +171,7 @@ describe('EvaluationSummary tier help', () => {
     expect(screen.getByTestId('procedure-guide')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /tier help/i })).not.toBeInTheDocument();
     expect(
-      screen.queryByText(/Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone/i)
+      screen.queryByText(/missed required steps can also lower the score if the run ends before protocol completion/i)
     ).not.toBeInTheDocument();
 
     rerender(
@@ -191,6 +191,13 @@ describe('EvaluationSummary tier help', () => {
 describe('EvaluationSummary debrief wording', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('uses neutral protocol-oriented score wording', () => {
+    render(<EvaluationSummary {...baseProps} />);
+
+    expect(screen.getByText('Protocol Score')).toBeInTheDocument();
+    expect(screen.queryByText('Efficiency')).not.toBeInTheDocument();
   });
 
   it('renders sequencing categories with expected-step guidance', () => {

@@ -120,4 +120,18 @@ describe('calculateScenarioProgress', () => {
     expect(progress.outcomeScore).toBe(50);
     expect(progress.totalScore).toBe(50);
   });
+
+  it('uses dynamic required-step totals when provided', () => {
+    const progress = calculateScenarioProgress(
+      progressScenario,
+      progressScenario.initial_state,
+      0,
+      2,
+      {},
+      4,
+    );
+
+    expect(progress.protocolScore).toBe(50);
+    expect(progress.totalScore).toBe(25);
+  });
 });

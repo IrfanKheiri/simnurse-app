@@ -170,7 +170,7 @@ const ScoreGauge: React.FC<{ score: number; loading?: boolean; suppressTierHelp?
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-4xl font-black text-slate-800 tracking-tighter">{score}%</span>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Efficiency</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Protocol Score</span>
                 </div>
             </div>
 

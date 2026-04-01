@@ -1,8 +1,25 @@
-# Implementation Plan: Correct Step Guidance in Post-Scenario Debrief
+# Historical Implementation Plan: Correct Step Guidance in Post-Scenario Debrief
 
-> **Status:** Draft — awaiting approval  
-> **Scope:** Post-Scenario Debrief (`EvaluationSummary`) — incorrect action cards  
-> **Branch suggestion:** `feat/debrief-correct-step`
+> **Status:** Implemented — retained as historical reference only  
+> **Current scope:** Debrief expected-step guidance, route-aware protocol metadata, and strict incomplete scoring are already live  
+> **Originally authored:** 2026-03-12  
+> **Last reconciled:** 2026-03-31
+
+---
+
+## Current state summary
+
+The original draft below assumed a flat-sequence-only engine and replay-only debrief recovery. Current code no longer matches those assumptions.
+
+- Scenario authoring supports both legacy `expected_sequence` and route-aware `protocol` definitions.
+- Runtime sequencing lives in `useScenarioEngine.ts`, which normalizes routes, tracks activated and required routes, supports optional branches and rescue routes, and emits structured intervention metadata into session logs.
+- Debrief expected-step guidance is metadata-first in `App.tsx`: it prefers persisted `state_aware_available_intervention_ids`, then `available_intervention_ids`, and falls back to replaying `expected_sequence` only for older logs that lack structured metadata.
+- `InterventionDefinition.rationale` is already implemented and remains the canonical source for debrief rationale text.
+- Strict incomplete scoring in `debriefScoring.ts` uses runtime `completedRequiredSteps` and `requiredStepCount`, not flat `expected_sequence.length`.
+
+## How to read the remainder of this document
+
+The rest of this file is preserved as historical design context. Where it conflicts with the summary above, the summary above is the current source of truth.
 
 ---
 

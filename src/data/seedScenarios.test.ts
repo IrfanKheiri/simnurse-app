@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { seedScenarios } from './seedScenarios';
-import { INTERVENTION_SHORT_LABELS } from '../App';
-import { CHEAT_LABELS } from '../components/CheatOverlay';
+import {
+  INTERVENTION_COPY,
+  getInterventionDisplayLabel,
+  getInterventionShortLabel,
+} from '../lib/interventionLabels';
 
 const allInterventionIds = [
   ...new Set(seedScenarios.flatMap(s => Object.keys(s.interventions))),
@@ -9,6 +12,16 @@ const allInterventionIds = [
 
 const blsScenarios = seedScenarios.filter(scenario => scenario.meta?.protocol === 'BLS');
 const aclsScenarios = seedScenarios.filter(scenario => scenario.meta?.protocol === 'ACLS');
+const strictCompletionPolicyScenarioIds = [
+  'adult_vfib_arrest_witnessed',
+  'adult_pulseless_vtach',
+  'pediatric_pulseless_vfib',
+  'bls_adult_cardiac_arrest_bystander',
+  'bls_adult_two_rescuer_cpr',
+  'bls_adult_aed_public_access',
+  'bls_child_cardiac_arrest',
+  'bls_child_two_rescuer_cpr',
+].sort();
 
 const isTerminalRoscState = (
   successState?: { pulsePresent?: boolean; rhythm?: string },
@@ -54,20 +67,26 @@ function assertOrderedSteps(
   }
 }
 
-describe('label map completeness', () => {
-  it('INTERVENTION_SHORT_LABELS covers all scenario intervention IDs', () => {
-    const missing = allInterventionIds.filter(id => !(id in INTERVENTION_SHORT_LABELS));
+describe('shared intervention label coverage', () => {
+  it('INTERVENTION_COPY covers all scenario intervention IDs', () => {
+    const missing = allInterventionIds.filter(id => !(id in INTERVENTION_COPY));
     expect(
       missing,
-      `Missing from INTERVENTION_SHORT_LABELS: ${missing.join(', ')}`,
+      `Missing from INTERVENTION_COPY: ${missing.join(', ')}`,
     ).toHaveLength(0);
   });
 
-  it('CHEAT_LABELS covers all scenario intervention IDs', () => {
-    const missing = allInterventionIds.filter(id => !(id in CHEAT_LABELS));
+  it('shared intervention label helpers resolve every scenario intervention ID', () => {
+    const missing = allInterventionIds.filter((id) => {
+      const displayLabel = getInterventionDisplayLabel(id).trim();
+      const shortLabel = getInterventionShortLabel(id).trim();
+
+      return displayLabel.length === 0 || shortLabel.length === 0;
+    });
+
     expect(
       missing,
-      `Missing from CHEAT_LABELS: ${missing.join(', ')}`,
+      `Missing labels from shared intervention helpers: ${missing.join(', ')}`,
     ).toHaveLength(0);
   });
 });
@@ -110,10 +129,115 @@ describe('shockable arrest teaching flow authoring', () => {
 
   it('treats PMCD as a conditional rescue step in pregnant_vfib_arrest', () => {
     const scenario = getScenario('pregnant_vfib_arrest');
+    const rescueRoute = scenario.protocol?.rescues?.find((route) => route.route_id === 'pmcd_rescue');
 
     expect(scenario.expected_sequence).not.toContain('perimortem_csection');
+    expect(scenario.protocol?.primary.steps).toEqual(scenario.expected_sequence);
+    expect(rescueRoute?.steps).toEqual(['perimortem_csection']);
+    expect(rescueRoute?.activation?.after_state_change).toBe('pmcd_window_open');
     expect(isTerminalRoscState(scenario.interventions.defibrillate.success_state)).toBe(false);
     expect(isTerminalRoscState(scenario.interventions.perimortem_csection.success_state)).toBe(true);
+  });
+});
+
+describe('route-based ACLS pilot authoring', () => {
+  it('authors adult_unstable_bradycardia with an optional pacing branch after IV while preserving the teaching spine', () => {
+    const scenario = getScenario('adult_unstable_bradycardia');
+    const pacingBranch = scenario.protocol?.branches?.find((route) => route.route_id === 'pacing_optional_branch');
+
+    expect(scenario.expected_sequence).toEqual([
+      'oxygen_nrb',
+      'establish_iv',
+      'atropine_0_5mg',
+      'transcutaneous_pacing',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'oxygen_nrb',
+      'establish_iv',
+      'atropine_0_5mg',
+    ]);
+    expect(pacingBranch?.steps).toEqual(['transcutaneous_pacing']);
+    expect(pacingBranch?.activation?.after_intervention).toBe('establish_iv');
+    expect(pacingBranch?.required).toBe(false);
+  });
+
+  it('authors adult_vtach_pulse with an optional post-cardioversion branch while preserving the teaching spine', () => {
+    const vtachScenario = getScenario('adult_vtach_pulse');
+    const postCardioversionBranch = vtachScenario.protocol?.branches?.find(
+      (route) => route.route_id === 'post_cardioversion_optional_branch',
+    );
+
+    expect(vtachScenario.expected_sequence).toEqual([
+      'synchronized_cardioversion',
+      'establish_iv',
+      'amiodarone_150mg_stable',
+    ]);
+    expect(vtachScenario.protocol?.primary.steps).toEqual(['synchronized_cardioversion']);
+    expect(postCardioversionBranch?.steps).toEqual([
+      'establish_iv',
+      'amiodarone_150mg_stable',
+    ]);
+    expect(postCardioversionBranch?.activation?.after_intervention).toBe('synchronized_cardioversion');
+    expect(postCardioversionBranch?.required).toBe(false);
+    expect(vtachScenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors adult_svt with an optional post-adenosine branch while preserving the teaching spine', () => {
+    const scenario = getScenario('adult_svt');
+    const postAdenosineBranch = scenario.protocol?.branches?.find(
+      (route) => route.route_id === 'post_adenosine_optional_branch',
+    );
+
+    expect(scenario.expected_sequence).toEqual([
+      'vagal_maneuver',
+      'establish_iv',
+      'adenosine_6mg',
+      'synchronized_cardioversion',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'vagal_maneuver',
+      'establish_iv',
+      'adenosine_6mg',
+    ]);
+    expect(postAdenosineBranch?.steps).toEqual(['synchronized_cardioversion']);
+    expect(postAdenosineBranch?.activation?.after_intervention).toBe('adenosine_6mg');
+    expect(postAdenosineBranch?.required).toBe(false);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+});
+
+describe('scenario completion policy authoring', () => {
+  it('marks only the approved scenario set as strict sequence-required', () => {
+    const strictScenarioIds = seedScenarios
+      .filter((scenario) => scenario.meta?.completionPolicy === 'strict_sequence_required')
+      .map((scenario) => scenario.scenario_id)
+      .sort();
+
+    expect(strictScenarioIds).toEqual(strictCompletionPolicyScenarioIds);
+  });
+
+  it('keeps pregnant_vfib_arrest on the legacy completion policy', () => {
+    const pregnantVfib = getScenario('pregnant_vfib_arrest');
+
+    expect(pregnantVfib.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps adult_unstable_bradycardia on the legacy completion policy', () => {
+    const adultUnstableBradycardia = getScenario('adult_unstable_bradycardia');
+
+    expect(adultUnstableBradycardia.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps adult_vtach_pulse on the legacy completion policy', () => {
+    const adultVtachPulse = getScenario('adult_vtach_pulse');
+
+    expect(adultVtachPulse.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps adult_svt on the legacy completion policy', () => {
+    const adultSvt = getScenario('adult_svt');
+
+    expect(adultSvt.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
   });
 });
 

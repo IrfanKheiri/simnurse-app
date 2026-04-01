@@ -6,6 +6,7 @@ export interface DebriefFeedbackMeta {
 }
 
 const SEQUENCE_HINT_SUFFIX = /\s+The next expected step is: .*$/;
+const MULTI_VALID_STEPS_HINT = /\s+Valid next steps are: .*$/;
 
 export function getDebriefFeedbackMeta(rejected: boolean, message: string): DebriefFeedbackMeta {
   if (!rejected) {
@@ -37,7 +38,18 @@ export function getDebriefFeedbackMeta(rejected: boolean, message: string): Debr
     };
   }
 
+  if (message.startsWith('Protocol Deviation: Rescue action locked.')) {
+    return {
+      isDuplicate: false,
+      categoryLabel: 'Not appropriate now',
+      comment: 'This rescue-only action was attempted before its activation condition was met.',
+      supportsExpectedAction: false,
+    };
+  }
+
   if (message.startsWith('Protocol Deviation: Incorrect sequence')) {
+    const supportsExpectedAction = !MULTI_VALID_STEPS_HINT.test(message) && SEQUENCE_HINT_SUFFIX.test(message);
+
     return {
       isDuplicate: false,
       categoryLabel: 'Sequencing issue',
@@ -47,7 +59,7 @@ export function getDebriefFeedbackMeta(rejected: boolean, message: string): Debr
           'Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol.',
           'This action was attempted before the next supported protocol step.',
         ),
-      supportsExpectedAction: true,
+      supportsExpectedAction,
     };
   }
 

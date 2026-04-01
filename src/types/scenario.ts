@@ -79,12 +79,46 @@ export interface PatientDemographics {
 
 export type ScenarioDifficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type ScenarioDomain = 'Cardiac' | 'Respiratory' | 'Neurological' | 'Obstetric' | 'Pediatric' | 'Emergency';
+export type ScenarioCompletionPolicy = 'legacy_outcome_driven' | 'strict_sequence_required';
+
+export type ScenarioProtocolRouteKind = 'primary' | 'branch' | 'rescue';
+
+export interface ScenarioProtocolStep {
+  intervention_id: string;
+  required?: boolean;
+}
+
+export interface ScenarioProtocolRouteActivation {
+  after_intervention?: string | string[];
+  after_state_change?: string | string[];
+}
+
+export interface ScenarioProtocolPrimaryRoute {
+  route_id?: string;
+  label?: string;
+  steps: Array<string | ScenarioProtocolStep>;
+}
+
+export interface ScenarioProtocolSecondaryRoute {
+  route_id: string;
+  label?: string;
+  steps: Array<string | ScenarioProtocolStep>;
+  activation?: ScenarioProtocolRouteActivation;
+  required?: boolean;
+}
+
+export interface ScenarioProtocol {
+  primary: ScenarioProtocolPrimaryRoute;
+  branches?: ScenarioProtocolSecondaryRoute[];
+  rescues?: ScenarioProtocolSecondaryRoute[];
+}
 
 export interface ScenarioMeta {
   difficulty: ScenarioDifficulty;
   domain: ScenarioDomain;
   estimatedDurationSec: number;
   protocol: 'BLS' | 'ACLS' | 'PALS';
+  completionPolicy?: ScenarioCompletionPolicy;
 }
 
 export interface Scenario {
@@ -99,6 +133,7 @@ export interface Scenario {
   scheduledStateChanges?: ScheduledStateChange[];
   interventions: Record<string, InterventionDefinition>;
   expected_sequence?: string[];
+  protocol?: ScenarioProtocol;
   success_conditions: Condition[];
   failure_conditions: Condition[];
 }
@@ -114,6 +149,12 @@ export interface InterventionEvent {
   intervention_id: string;
   message: string;
   rejected: boolean;
+  available_intervention_ids?: string[];
+  state_aware_available_intervention_ids?: string[];
+  active_route_id?: string | null;
+  activated_route_ids?: string[];
+  advanced_route_id?: string | null;
+  required_step_delta?: number;
 }
 
 export interface StateChangeEvent {

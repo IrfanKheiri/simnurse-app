@@ -8,6 +8,8 @@ SimNurse is a scenario-based nursing simulator. The learner picks a case, observ
 
 The library screen loads seeded scenarios from the local Dexie database. Each selection starts a fresh simulation run with a new session id so historical logs are not mixed together.
 
+Seeded content now includes both legacy and route-aware cases, including branch or rescue pilots such as `pregnant_vfib_arrest`, `adult_unstable_bradycardia`, `adult_vtach_pulse`, and `adult_svt`.
+
 ### 2. Live Patient Assessment
 
 The patient tab presents the bedside view:
@@ -19,14 +21,17 @@ The patient tab presents the bedside view:
 
 The simulation is time-based. Vitals and rhythm can worsen or improve over time, and some scenarios include scheduled transitions such as deterioration into a pulseless arrest.
 
-### 3. Actions and Protocol Review
+### 3. Actions and Protocol Guidance
 
 The actions tab exposes a searchable catalog of interventions. Selecting an action opens a procedure guide before the action is applied. The engine then decides whether the intervention:
 
-- is accepted and modifies the patient state
-- is rejected because it is out of sequence or clinically inappropriate
+- is accepted because it is supported by the currently active route and patient state
+- is rejected for sequence reasons, with a single expected next step or multiple valid next steps when more than one route-supported option is available
+- is rejected because a rescue-only action is still locked and its activation condition has not been met
+- is rejected because the action is not appropriate for the current rhythm or patient state
+- is rejected as a duplicate or cooldown repeat
 
-Rejected actions are logged and surfaced again in the debrief for review.
+Accepted actions can change patient state immediately, apply timed effects, advance protocol progress, and activate branch or rescue routes.
 
 ### 4. Monitor and Vital Discovery
 
@@ -43,10 +48,14 @@ The ECG and vital cards reflect the live engine state, including pulseless state
 
 When the engine reaches a success or failure condition, or when the learner ends the case manually, SimNurse shows a debrief. The debrief is built from the typed session log stored for that run and includes:
 
-- scored intervention timeline
-- accepted versus rejected actions
+- a scored intervention timeline
+- accepted versus rejected action classification
+- duplicate-repeat versus protocol or state issue separation
+- metadata-first expected-step guidance for eligible rejected actions, with legacy fallback for older logs
 - manual-end versus completed-case distinction
-- clinical conclusion summary
+- clinical conclusion summary and scenario-specific success conclusion text
+
+For strict incomplete runs, debrief omissions are based on runtime required-step totals rather than flat `expected_sequence` length.
 
 ## Clinical Simulation Rules
 
@@ -58,8 +67,15 @@ The runtime model supports:
 - elapsed-time triggers
 - hold-duration conditions
 - timed non-numeric state changes through scheduled scenario events
+- legacy `expected_sequence` sequencing
+- route-aware `protocol` sequencing with primary, branch, and rescue routes
+- runtime required-step totals derived from activated required routes and steps
 
-That model allows cases such as STEMI deterioration, VFib-to-asystole progression, and pulseless electrical activity to behave explicitly instead of relying on fragile rhythm-only assumptions.
+That model allows cases such as STEMI deterioration, VFib-to-asystole progression, PEA, rescue-route escalation, and optional or branching tachycardia flows to behave explicitly instead of relying on fragile rhythm-only or flat-sequence assumptions.
+
+### Completion Policy
+
+Scenarios can still use outcome-driven completion, but `strict_sequence_required` cases add an extra gate: physiologic success alone is not enough if required protocol work remains incomplete. Success is only awarded after the runtime required-step count has been satisfied.
 
 ## Persistence and Reset Behavior
 

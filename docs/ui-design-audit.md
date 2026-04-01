@@ -244,7 +244,7 @@ This is a positive signal — the app globally enforces 44×44px minimum touch t
 
 - **VitalCard unlock button** ([`VitalCard.tsx:47-53`](src/components/VitalCard.tsx:47)): rendered as `<button>` with only `text-[10px] text-medical-600 font-medium` — no explicit `min-h` or `min-w`. The CSS rule applies, but with no padding, the text content itself is ~10px tall and the 44px applies as invisible whitespace. The tappable area is correct but the visual affordance is severely undersized. (ISSUE-17)
 
-- **OnboardingTour "Skip Tour" button** ([`OnboardingTour.tsx:227`](src/components/OnboardingTour.tsx:227)): `text-[10px] font-bold text-slate-400` with no padding or min-size classes. The global CSS rule provides the 44px minimum, but at a 260px-wide tooltip with two buttons side-by-side, this link may receive an effectively small tap zone.
+- **Walkthrough "Skip Tour" button** ([`WalkthroughEngine.tsx:303`](src/components/WalkthroughEngine.tsx:303)): `text-[10px] font-bold text-slate-400` with no padding or min-size classes. The global CSS rule provides the 44px minimum, but at a compact tooltip width this link may still read as visually undersized.
 
 ### 6.3 ARIA & Semantic HTML
 
@@ -400,8 +400,8 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 - "End" button upgraded to `bg-red-500 text-white` — clearly communicates destructive action; `aria-label="End scenario and view debrief"` added
 - `EndConfirmDialog` manages focus correctly via `useRef`
 
-**Remaining issues:**
-- SpO₂ and Rhythm badges always show live values regardless of `unlocked` state — only `opacity` dims when not unlocked (ISSUE-10, open). Creates inconsistency with StatusDashboard vital gating.
+**Current notes:**
+- ~~SpO₂ and Rhythm badges always show live values regardless of `unlocked` state~~ — **Fixed (ISSUE-10):** `PatientView` now gates both values behind the `unlocked` prop, matching the StatusDashboard unlock mechanic.
 - ~~Post-stabilization clinical narrative remains generic~~ — **Fixed (ISSUE-08):** `conclusion` field added to `Scenario` type; all 25 seed scenarios include clinically specific conclusion text; `EvaluationSummary` renders `conclusion ?? 'Patient stabilized.'` on success outcome.
 
 ### 10.3 ActionsScreen
@@ -443,7 +443,8 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 - SVG score gauge with tier-based coloring and icon (`Trophy`, `Star`, `Target`, etc.) — highly engaging
 - Timeline with left-border connector, timestamp chips, and color-coded entries — excellent debrief UX
 - Outcome-dependent color theming (emerald/red/indigo) — strong contextual signaling
-- "Review Protocol" link in timeline leads to ISSUE-25 navigation bug
+- Timeline now distinguishes duplicate repeats from protocol or state issues and can show an expected-step panel with rationale for eligible rejected actions.
+- `Review Protocol` opens `ProcedureGuide` as a local portal overlay inside the debrief, so the summary remains in place.
 
 **Positive highlights:** The [`ScoreGauge`](src/components/EvaluationSummary.tsx:25) SVG implementation with `strokeDashoffset` animation and performance tier labels is the most polished UI element in the application.
 
@@ -491,16 +492,16 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 
 ### 10.9 OnboardingTour
 
-**File:** [`src/components/OnboardingTour.tsx`](src/components/OnboardingTour.tsx)
+**File:** [`src/components/WalkthroughEngine.tsx`](src/components/WalkthroughEngine.tsx)
 
 **Design Grade: B**
 
 - Opt-in (ISSUE-04 fixed): Tour only starts on help button click
-- Correct spotlight implementation using `clip-path` polygon overlay
+- Correct spotlight implementation now uses a Safari-safe four-panel overlay around the target element
 - Tooltip positioning with clamp-bounded left/top calculation — handles viewport edge cases
 - Arrow direction indicator with `rotate-45` pseudo-diamond
 
-**Remaining issue (ISSUE-29):** The `clip-path` polygon on the full-viewport overlay has known rendering defects in Safari iOS 15 and below. Replace with four overlay rectangles (top, right, bottom, left panels) surrounding the target element.
+**Current note:** ISSUE-29 is resolved. The walkthrough spotlight now renders as four overlay rectangles instead of a single `clip-path` polygon, so the prior Safari-specific rendering concern is no longer current.
 
 ### 10.10 IncorrectActionWidget
 
@@ -510,7 +511,7 @@ Three tabs: Patient (`User`), Actions (`Zap`), Status (`Activity`).
 
 - High-contrast red gradient header with large `AlertOctagon` icon — impossible to miss
 - "Protocol Deviation" subtitle communicates clinical framing
-- Generic rejection message (ISSUE-13): "Incorrect sequence. This is not the appropriate next step in the protocol." — no next-step hint. Should include the expected next action.
+- Route-aware rejection feedback now surfaces either a single expected next step or multiple valid next steps, and the debrief can echo that context with an expected-step panel.
 
 ---
 
@@ -545,7 +546,7 @@ This is a coherent visual language. The medical teal is appropriately clinical w
 | Discovery (Library) | ✅ Good | Welcome banner, preview modal, difficulty badges all aid discovery |
 | Activation (Scenario Start) | ✅ Good | Preview confirms readiness; patient tab is the correct start |
 | Engagement (Live Sim) | ⚠️ Mixed | Clinical notes are good; badge/notes layout bugs reduce immersion |
-| Rejection feedback | ⚠️ Needs work | Generic rejection message; no next-step hint (ISSUE-13) |
+| Rejection feedback | ✅ Good | Route-aware rejection feedback now exposes a single expected step or multiple valid next steps, and debrief cards can show expected-step rationale |
 | Completion | ✅ Good | Toast + auto-debrief flow is seamless |
 | Debrief | ✅ Excellent | Score gauge, timeline, tier labels — best-in-class for the app |
 | Replay | ✅ Good | "Try Again" is one tap away from debrief |
@@ -554,8 +555,8 @@ This is a coherent visual language. The medical teal is appropriately clinical w
 ### 12.2 Cognitive Load Management
 
 - The 33-action catalog without scenario filtering (ISSUE-12, intentionally ignored) creates high cognitive load on the Actions screen, especially for novice learners encountering pediatric-specific or STEMI-specific drugs during an arrest scenario.
-- The vital unlock mechanic is a positive pedagogical tool, but SpO₂ is freely shown on the Patient tab while locked on the Status tab (ISSUE-10, open) — undermining the mechanic's pedagogical intent. The "Perform Inspection to unlock" touch target is now 44px compliant and text is 12px (ISSUE-17, partially addressed).
-- Rejection feedback is significantly improved: `IncorrectActionWidget` now includes a next-step hint ("The next expected step is: X") in the rejection message (ISSUE-13, fixed). This substantially reduces the cognitive burden of error recovery.
+- The vital unlock mechanic is now internally consistent: `PatientView` gates SpO₂ and Rhythm values behind `unlocked`, matching the StatusDashboard flow. The "Perform Inspection to unlock" touch target remains 44px compliant and text is 12px.
+- Rejection feedback is significantly improved: `IncorrectActionWidget` and persisted intervention metadata now support route-aware guidance. Learners can see either a single expected next step or multiple valid next steps, and the debrief can restate that context with expected-step rationale when available.
 
 ---
 
@@ -594,11 +595,11 @@ This is a coherent visual language. The medical teal is appropriately clinical w
 | P3-A | ~~Standardize bottom sheet border radius~~ | `ProcedureGuide`, `ScenarioPreviewModal` | ✅ **Fixed** | `rounded-3xl` / `rounded-t-3xl` standardized across `ProcedureGuide`, `EvaluationSummary`, `CheatOverlay` |
 | P3-B | Promote inline hex colors to tokens | [`VitalCard.tsx:16`](src/components/VitalCard.tsx:16) | **Open** | `#d97706` (bp) deviates from `vital.bp = #ffca28` in tailwind config |
 | P3-C | ~~Remove App.css Vite scaffolding~~ | [`src/App.css`](src/App.css) | ✅ **Fixed** | Vite scaffold styles (`.logo`, `.read-the-docs`, `.card`) removed; file now contains only a minimal comment |
-| P3-D | Fix clip-path Safari compatibility | [`OnboardingTour.tsx`](src/components/OnboardingTour.tsx) | ✅ **Fixed** | Four-panel overlay replaces clip-path (ISSUE-29) |
+| P3-D | Fix clip-path Safari compatibility | [`WalkthroughEngine.tsx`](src/components/WalkthroughEngine.tsx) | ✅ **Fixed** | Four-panel overlay replaces clip-path (ISSUE-29) |
 | P3-E | ~~Promote indigo to brand token~~ | [`tailwind.config.js`](tailwind.config.js) | ✅ **Fixed** | Indigo token audit complete; `medical-*` confirmed as teal palette (not indigo); TODO comments added at gradient sites; full swap deferred pending theme decision |
 | P3-F | ~~Remove dark mode stub~~ | [`src/index.css:53`](src/index.css:53) | ✅ **Fixed** | Dark mode audit complete; confirmed zero `dark:` classes exist in codebase; no changes needed |
 | P3-G | ~~Session history~~ moved to P2-H | — | Promoted | See P2-H |
-| P3-H | ECG canvas accessibility | [`ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | **Open** | Add `role="img" aria-label={rhythmLabel}` to canvas element (moved to P1-H) |
+| P3-H | ~~ECG canvas accessibility~~ moved to P1-H | [`ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | ✅ **Fixed** | See P1-H; canvas now exposes `role="img"` and dynamic `aria-label` |
 | P3-I | ~~HelpCircle icon in EndConfirmDialog~~ | [`PatientView.tsx`](src/components/PatientView.tsx) | ✅ **Fixed** | `EndConfirmDialog` now uses `AlertTriangle` icon |
 | P3-J | ~~Namespace suppression per scenario~~ | [`ProcedureGuide.tsx:44`](src/components/ProcedureGuide.tsx:44) | ✅ **Fixed** | `disabled` prop added to `ActionsScreen`; when `status !== 'running'`, actions list wrapped in `pointer-events-none opacity-50` with 'Scenario complete — no further actions available' banner (ISSUE-15) |
 | P3-K | ~~Restart from DB canonical seed~~ | [`App.tsx:633`](src/App.tsx:633) | ✅ **Fixed** | Restart handler re-fetches scenario from Dexie by `scenario_id` before calling `startScenarioRun`; falls back to in-memory copy if DB unavailable (ISSUE-26) |
@@ -634,7 +635,7 @@ This is a coherent visual language. The medical teal is appropriately clinical w
 | Component | File | Key Design Tokens | Primary Issues |
 |---|---|---|---|
 | `Header` | [`src/components/Header.tsx`](src/components/Header.tsx) | `medical-500`, `slate-800`, `slate-900` (vital strip) | None active; MiniMonitor merged here (ISSUE-20 fixed) |
-| `MiniMonitor` | [`src/components/MiniMonitor.tsx`](src/components/MiniMonitor.tsx) | `slate-900`, `green-400`, `blue-400`, `cyan-400` | ⚠️ No longer mounted in App.tsx — superseded by Header vital strip |
+| `Header` vital strip | [`src/components/Header.tsx`](src/components/Header.tsx) | `slate-900`, `green-400`, `blue-400`, `cyan-400` | Supersedes the old standalone MiniMonitor concept; labels remain small at 10–11px |
 | `BottomNav` | [`src/components/BottomNav.tsx`](src/components/BottomNav.tsx) | `medical-50`, `medical-600`, `slate-500` | Inactive label contrast borderline at 11px |
 | `PatientView` | [`src/components/PatientView.tsx`](src/components/PatientView.tsx) | `red-500`, `indigo-600`, `white/90` | ISSUE-08 fixed (scenario-specific conclusion text added) |
 | `ActionsScreen` | [`src/components/ActionsScreen.tsx`](src/components/ActionsScreen.tsx) | `medical-500`, per-action hex colors | ISSUE-12 (ignored by product) |
@@ -642,10 +643,10 @@ This is a coherent visual language. The medical teal is appropriately clinical w
 | `ECGWaveform` | [`src/components/ECGWaveform.tsx`](src/components/ECGWaveform.tsx) | Rhythm-specific (emerald/amber/red/grey/violet) | ISSUE-P1-H fixed (`role="img"` and dynamic `aria-label` added) |
 | `VitalCard` | [`src/components/VitalCard.tsx`](src/components/VitalCard.tsx) | Per-vital color, `slate-400` locked | `--` contrast ~3.5:1 below WCAG AA; ISSUE-17 partially fixed |
 | `LibraryScreen` | [`src/components/LibraryScreen.tsx`](src/components/LibraryScreen.tsx) | `medical-500`, `indigo-600` (gradient) | ISSUE-27 fixed (session history added) |
-| `EvaluationSummary` | [`src/components/EvaluationSummary.tsx`](src/components/EvaluationSummary.tsx) | `emerald-500`, `red-500`, `indigo-500` per tier | ISSUE-25 fixed; ISSUE-24 fixed (duplicate scoring) |
-| `ProcedureGuide` | [`src/components/ProcedureGuide.tsx`](src/components/ProcedureGuide.tsx) | `medical-500`, `medical-600` | ISSUE-14 placeholder (deferred); ISSUE-15 (global suppression) open |
-| `IncorrectActionWidget` | [`src/components/IncorrectActionWidget.tsx`](src/components/IncorrectActionWidget.tsx) | `red-500→red-600` gradient | ISSUE-13 fixed (next-step hint); ISSUE-28 fixed (portal + ARIA) |
-| `OnboardingTour` | [`src/components/OnboardingTour.tsx`](src/components/OnboardingTour.tsx) | `medical-500`, `slate-900/60` overlay | ISSUE-29 fixed (four-panel overlay replaces clip-path) |
+| `EvaluationSummary` | [`src/components/EvaluationSummary.tsx`](src/components/EvaluationSummary.tsx) | `emerald-500`, `red-500`, `indigo-500` per tier | ISSUE-25 fixed; ISSUE-24 fixed; expected-step guidance panel now reflects persisted protocol metadata |
+| `ProcedureGuide` | [`src/components/ProcedureGuide.tsx`](src/components/ProcedureGuide.tsx) | `medical-500`, `medical-600` | ISSUE-14 placeholder remains deferred; ISSUE-15 no longer applies as a current open item |
+| `IncorrectActionWidget` | [`src/components/IncorrectActionWidget.tsx`](src/components/IncorrectActionWidget.tsx) | `red-500→red-600` gradient | ISSUE-13 fixed with route-aware single or multi-step guidance; ISSUE-28 fixed (portal + ARIA) |
+| `WalkthroughEngine` | [`src/components/WalkthroughEngine.tsx`](src/components/WalkthroughEngine.tsx) | `medical-500`, `slate-900/60` overlay | ISSUE-29 fixed (four-panel overlay replaces clip-path) |
 | `Toast` | [`src/components/Toast.tsx`](src/components/Toast.tsx) | Semantic per-variant | Toast `top-[72px]` may overlap Header vital strip — verify `top-[120px]` during active scenarios |
 | `ContextualOverlay` | [`src/components/ContextualOverlay.tsx`](src/components/ContextualOverlay.tsx) | `blue-900/10`, dynamic opacity | None — well implemented |
 

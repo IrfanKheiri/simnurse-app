@@ -52,6 +52,34 @@ describe('getDebriefFeedbackMeta', () => {
     ).toBe(false);
   });
 
+  it('does not imply a single expected action when multiple next steps are valid', () => {
+    expect(
+      getDebriefFeedbackMeta(
+        true,
+        'Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol. Valid next steps are: Cpr or Perimortem Csection.',
+      ),
+    ).toEqual({
+      isDuplicate: false,
+      categoryLabel: 'Sequencing issue',
+      comment: 'This action was attempted before the next supported protocol step. Valid next steps are: Cpr or Perimortem Csection.',
+      supportsExpectedAction: false,
+    });
+  });
+
+  it('classifies locked rescue actions without expected-step guidance', () => {
+    expect(
+      getDebriefFeedbackMeta(
+        true,
+        'Protocol Deviation: Rescue action locked. This action cannot be used until its rescue activation condition is met.',
+      ),
+    ).toEqual({
+      isDuplicate: false,
+      categoryLabel: 'Not appropriate now',
+      comment: 'This rescue-only action was attempted before its activation condition was met.',
+      supportsExpectedAction: false,
+    });
+  });
+
   it('distinguishes patient-state mismatches from sequence issues', () => {
     expect(
       getDebriefFeedbackMeta(

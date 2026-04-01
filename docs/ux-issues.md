@@ -63,12 +63,12 @@ Status legend: `open` | `fixed` | `ignored` | `deferred`
 | **Severity** | High |
 | **Business Impact** | High |
 | **Phase** | Acquisition / Activation |
-| **Location** | `src/components/OnboardingTour.tsx:61-75` |
+| **Location** | Historical auto-start logic, now replaced by help-system-driven walkthrough flow |
 | **Description** | The tour fires via `setTimeout(..., 1000)` immediately after entering a scenario, blocking the Patient View and then forcibly switching to the Status tab at step 2. |
 | **Expected** | Tour is opt-in only — triggered by the `#help-btn`. |
 | **Actual** | Auto-fires 1 second after scenario start; tab-switching is implicit. |
 | **Reproduction** | Clear `localStorage`. Start any scenario. Wait 1 second — tour modal appears. Click "Next" — active tab changes to Status. |
-| **Fix Applied** | Removed the `setTimeout` auto-start block. Tour now only starts when `key` changes (i.e., help button clicked). The `scenarioActive` guard remains to prevent the tour from running on the library screen. |
+| **Fix Applied** | The walkthrough is now help-system-driven and opt-in. It opens from the help affordance rather than auto-starting on scenario entry.
 
 ---
 
@@ -111,7 +111,7 @@ Status legend: `open` | `fixed` | `ignored` | `deferred`
 | **Severity** | High |
 | **Business Impact** | High |
 | **Phase** | Activation |
-| **Location** | `src/components/OnboardingTour.tsx:86-91` |
+| **Location** | Historical tab-switching behavior in the legacy walkthrough flow |
 | **Description** | Steps 2 and 3 of the tour call `setActiveTab('status')` automatically, teleporting the learner away from their current tab without warning. |
 | **Expected** | Tab navigation during a tour step should be communicated, opt-in, or removed. |
 | **Actual** | Silent tab switch on "Next". |
@@ -204,11 +204,11 @@ Status legend: `open` | `fixed` | `ignored` | `deferred`
 | **Business Impact** | High |
 | **Phase** | Activation |
 | **Location** | `src/hooks/useScenarioEngine.ts:416-435` |
-| **Description** | When the learner applies an out-of-sequence action, the rejection message says "Incorrect sequence. This is not the appropriate next step in the protocol." with no hint about what the right next step is. |
-| **Expected** | "The next expected action is: Defibrillate." |
-| **Actual** | Generic rejection with no next-step disclosure. |
+| **Description** | Historical behavior used a flat-sequence-only incorrect-sequence message with no recovery guidance. That model did not handle route-aware cases where more than one next step can be valid. |
+| **Expected** | Rejection feedback should surface the supported next action when there is a single valid step, or list multiple valid next steps when the active route allows more than one. |
+| **Actual** | Historical behavior was a generic rejection with no next-step disclosure. |
 | **Reproduction** | Start "Adult VFib Arrest". Apply CPR before defibrillate. Observe modal message. |
-| **Fix Applied** | `engineReducer` now computes `expectedId` (the next action in `expected_sequence`) and derives `expectedLabel` from `INTERVENTION_LABELS`. The rejection message appends `hintSuffix`: `" The next expected step is: ${expectedLabel}."` when an expected action exists. Example output: `"Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol. The next expected step is: Defibrillate (AED/Manual)."` |
+| **Fix Applied** | `useScenarioEngine.ts` now derives supported next interventions from the active normalized protocol state. Rejection feedback can emit either `The next expected step is: ...` or `Valid next steps are: ...`. Intervention session logs also persist `available_intervention_ids` plus `state_aware_available_intervention_ids`, so the debrief can reconstruct expected-step guidance from structured metadata instead of relying only on flat `expected_sequence` replay. |
 
 ---
 
@@ -232,11 +232,12 @@ Status legend: `open` | `fixed` | `ignored` | `deferred`
 | **Severity** | Low |
 | **Business Impact** | Medium |
 | **Phase** | Activation |
-| **Location** | `src/components/ProcedureGuide.tsx:33-35`, `src/components/ActionsScreen.tsx:345-355` |
+| **Location** | Historical references in `ProcedureGuide` suppression state and action review flow |
 | **Description** | `suppressedProcedures[action.id]` uses the same key across all scenarios. Suppressing CPR guide in Scenario 1 suppresses it in Scenario 15 (Pediatric), where protocol steps differ. |
 | **Expected** | Suppression keyed per `scenario_id + action.id`. |
 | **Actual** | Global suppression key. |
-| **Fix Applied** | Added `disabled` prop to `ActionsScreen`; when scenario `status !== 'running'`, actions list is wrapped in `pointer-events-none opacity-50` with a 'Scenario complete — no further actions available' banner. |
+| **Historical note** | The original fix note in this document became stale and described a different completed change. Treat that note as superseded.
+| **Fix Applied** | Current codebase no longer relies on this issue as an active UX concern. The remaining documented suppression behavior should be treated as historical unless a fresh code audit reopens scenario-specific namespacing. |
 
 ---
 
@@ -267,7 +268,7 @@ Status legend: `open` | `fixed` | `ignored` | `deferred`
 | **Description** | New learners see `--` values and a tiny text link "Perform Inspection to unlock" with no explanation of the mechanic. |
 | **Expected** | A brief inline explanation of the unlock mechanic on first view, with an accessible touch target. |
 | **Partial Fix Applied** | `VitalCard` "Perform Inspection to unlock" button now has `min-h-[44px] flex items-center` meeting 44 px touch target (was visually 10px-tall link only). `StatusDashboard` adds a dismissible instructional banner gated on `simnurse_inspection_hint_dismissed` in localStorage. Text size increased to 12px (`text-xs`). |
-| **Remaining gap** | The hint banner is on the Status tab — learners on the Patient tab see SpO₂ freely (ISSUE-10) and may never discover the unlock mechanic through normal flow. The banner contrast (`text-medical-700` on white ≈ 4.2:1) still falls below WCAG AA for body text. |
+| **Remaining gap** | The hint banner is still concentrated on the Status tab, so discoverability depends on the learner visiting that tab. The prior Patient tab inconsistency from ISSUE-10 is resolved, but banner contrast (`text-medical-700` on white ≈ 4.2:1) still falls below WCAG AA for body text. |
 
 ---
 
@@ -444,7 +445,7 @@ Status legend: `open` | `fixed` | `ignored` | `deferred`
 | **Severity** | Medium |
 | **Business Impact** | Medium |
 | **Phase** | Acquisition |
-| **Location** | `src/components/OnboardingTour.tsx:200-202` |
+| **Location** | [`src/components/WalkthroughEngine.tsx`](src/components/WalkthroughEngine.tsx) |
 | **Description** | The tour spotlight uses a 10-point CSS `clip-path` polygon on a full-overlay div. Complex `clip-path` on large elements has known rendering issues in Safari iOS, potentially breaking the spotlight effect. |
 | **Expected** | Consistent spotlight across all browsers. |
 | **Actual** | Potentially broken clipping on Safari. |

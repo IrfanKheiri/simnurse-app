@@ -39,10 +39,10 @@ export type PerformanceTier = typeof PERFORMANCE_TIERS[number];
 export type PerformanceTierLabel = PerformanceTier['label'];
 
 export const PERFORMANCE_TIER_HELP_INTRO =
-  'Your tier reflects how many interventions were correct and in sequence out of all recorded interventions.';
+  'Your tier reflects how many scored interventions were correct and in sequence across the case.';
 
 export const PERFORMANCE_TIER_HELP_INTERPRETATION =
-  'Lower tiers usually reflect missed or out-of-sequence interventions rather than speed alone.';
+  'Lower tiers usually reflect missed, incorrect, or out-of-sequence interventions. In strict protocol scenarios, missed required steps can also lower the score if the run ends before protocol completion.';
 
 export const PERFORMANCE_TIER_HELP_MASTERY_HINT =
   'Aim for ≥88% (Proficient) before moving to the next difficulty tier.';
