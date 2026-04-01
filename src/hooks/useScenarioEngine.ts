@@ -4,6 +4,8 @@ import type {
   AdjustableVital,
   Condition,
   EngineEvent,
+  InterventionEvent,
+  InterventionRejectionCategory,
   InterventionDefinition,
   PatientField,
   PatientState,
@@ -188,6 +190,23 @@ function resolveActiveRouteId(protocol: NormalizedProtocol, runtimeState: Protoc
   return candidateRouteIds.find((routeId) => routeId === protocol.primaryRouteId) ?? candidateRouteIds[0];
 }
 
+function shouldActivateRoute(
+  route: NormalizedProtocolRoute,
+  protocol: NormalizedProtocol,
+  runtimeState: ProtocolRuntimeState,
+  appliedStateChangeIds: Record<string, true>,
+): boolean {
+  if (route.id === protocol.primaryRouteId) {
+    return true;
+  }
+
+  return route.activationInterventionIds.some(
+    (interventionId) => runtimeState.completedInterventionIds[interventionId],
+  ) || route.activationStateChangeIds.some(
+    (stateChangeId) => appliedStateChangeIds[stateChangeId],
+  );
+}
+
 function synchronizeProtocolRuntimeState(
   protocol: NormalizedProtocol | null,
   runtimeState: ProtocolRuntimeState,
@@ -210,14 +229,7 @@ function synchronizeProtocolRuntimeState(
       nextRuntimeState.routeStepIndexes[route.id] = 0;
     }
 
-    const hasExplicitActivation = route.activationInterventionIds.length > 0
-      || route.activationStateChangeIds.length > 0;
-    const shouldActivate = route.id === protocol.primaryRouteId
-      || !hasExplicitActivation
-      || route.activationInterventionIds.some((interventionId) => nextRuntimeState.completedInterventionIds[interventionId])
-      || route.activationStateChangeIds.some((stateChangeId) => appliedStateChangeIds[stateChangeId]);
-
-    if (shouldActivate) {
+    if (shouldActivateRoute(route, protocol, nextRuntimeState, appliedStateChangeIds)) {
       nextRuntimeState.activatedRouteIds[route.id] = true;
     }
 
@@ -424,26 +436,66 @@ function findMatchingRoute(
 }
 
 function buildInterventionEvent(
-  protocol: NormalizedProtocol | null,
-  progressState: ProtocolProgressState,
-  event: Omit<Extract<EngineEvent, { type: 'intervention' }>, 'type'>,
-  stateAwareAvailableInterventionIds?: string[],
-): Extract<EngineEvent, { type: 'intervention' }> {
+  event: Omit<InterventionEvent, 'type'>,
+): InterventionEvent {
   return {
     type: 'intervention',
     ...event,
-    ...(protocol
+  };
+}
+
+function buildRejectedInterventionEvent(
+  event: Omit<InterventionEvent, 'type' | 'rejected'> & { rejection_category: InterventionRejectionCategory },
+): InterventionEvent {
+  return buildInterventionEvent({
+    ...event,
+    rejected: true,
+  });
+}
+
+function buildInterventionAttemptContext(
+  protocol: NormalizedProtocol | null,
+  progressState: ProtocolProgressState,
+  stateAwareAvailableInterventionIds?: string[],
+): InterventionEvent['attempt_context'] {
+  if (!protocol) {
+    return undefined;
+  }
+
+  return {
+    available_intervention_ids: [...progressState.availableInterventionIds],
+    ...(stateAwareAvailableInterventionIds !== undefined
       ? {
-          available_intervention_ids: [...progressState.availableInterventionIds],
-          ...(stateAwareAvailableInterventionIds !== undefined
-            ? {
-                state_aware_available_intervention_ids: [...stateAwareAvailableInterventionIds],
-              }
-            : {}),
-          active_route_id: progressState.activeRouteId,
-          activated_route_ids: [...progressState.activatedRouteIds],
+          state_aware_available_intervention_ids: [...stateAwareAvailableInterventionIds],
         }
       : {}),
+    active_route_id: progressState.activeRouteId,
+    activated_route_ids: [...progressState.activatedRouteIds],
+  };
+}
+
+function buildInterventionResultContext(
+  protocol: NormalizedProtocol | null,
+  progressState: ProtocolProgressState,
+  advancedRouteId: string | null,
+  requiredStepDelta: number,
+  stateAwareAvailableInterventionIds?: string[],
+): InterventionEvent['result_context'] {
+  if (!protocol) {
+    return undefined;
+  }
+
+  return {
+    available_intervention_ids: [...progressState.availableInterventionIds],
+    ...(stateAwareAvailableInterventionIds !== undefined
+      ? {
+          state_aware_available_intervention_ids: [...stateAwareAvailableInterventionIds],
+        }
+      : {}),
+    active_route_id: progressState.activeRouteId,
+    activated_route_ids: [...progressState.activatedRouteIds],
+    advanced_route_id: advancedRouteId,
+    required_step_delta: requiredStepDelta,
   };
 }
 
@@ -807,6 +859,7 @@ function makeInitialState(scenario: Scenario | null): EngineState {
       displayState: null,
       elapsedSec: 0,
       activeInterventions: [],
+      acceptedInterventionIds: [],
       status: 'running',
       sequenceIndex: protocolProgress.completedRequiredSteps,
       protocolRuntime,
@@ -824,6 +877,7 @@ function makeInitialState(scenario: Scenario | null): EngineState {
     displayState: scenario.initial_state,
     elapsedSec: 0,
     activeInterventions: [],
+    acceptedInterventionIds: [],
     status: 'running',
     sequenceIndex: protocolProgress.completedRequiredSteps,
     protocolRuntime,
@@ -849,6 +903,7 @@ interface EngineState {
   displayState: PatientState | null;
   elapsedSec: number;
   activeInterventions: ActiveIntervention[];
+  acceptedInterventionIds: string[];
   status: EngineStatus;
   sequenceIndex: number;
   protocolRuntime: ProtocolRuntimeState;
@@ -884,17 +939,23 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
       preAttemptProtocolProgress.availableInterventionIds,
       state.displayState,
     );
+    const preAttemptContext = buildInterventionAttemptContext(
+      protocol,
+      preAttemptProtocolProgress,
+      preAttemptStateAwareAvailableInterventionIds,
+    );
 
     if (state.status !== 'running') {
       return {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
+            rejection_category: 'scenario_inactive',
             message: 'Scenario is no longer active. No interventions can be applied.',
-          }, preAttemptStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
@@ -905,11 +966,12 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
+            rejection_category: 'not_applicable',
             message: 'Protocol Deviation: This action is not applicable or effective in the current scenario.',
-          }, preAttemptStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
@@ -919,11 +981,12 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
+            rejection_category: 'rescue_locked',
             message: buildInactiveRescueRouteMessage(),
-          }, preAttemptStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
@@ -936,25 +999,29 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
+            rejection_category: 'sequence_deviation',
             message: buildSequenceDeviationMessage(preAttemptProtocolProgress.availableInterventionIds),
-          }, preAttemptStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
 
     if (!isInterventionPhysiologicallyAppropriate(definition, state.displayState)) {
+      const requiredRhythms = definition.requires_rhythm ?? [];
+
       return {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
-            message: `Not appropriate for the current rhythm. Requires ${definition.requires_rhythm.join(' or ')}. Current rhythm: ${state.displayState.rhythm}.`,
-          }, preAttemptStateAwareAvailableInterventionIds),
+            rejection_category: 'rhythm_mismatch',
+            message: `Not appropriate for the current rhythm. Requires ${requiredRhythms.join(' or ')}. Current rhythm: ${state.displayState.rhythm}.`,
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
@@ -969,11 +1036,12 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
+            rejection_category: 'already_applied',
             message: 'Already applied. This action stays in effect for this scenario.',
-          }, preAttemptStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
@@ -992,11 +1060,12 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         ...state,
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildRejectedInterventionEvent({
             intervention_id: interventionId,
-            rejected: true,
+            rejection_category: 'already_active',
             message: `Already active. Only this action is temporarily unavailable. Repeat available in approximately ${remainingSec}–${nextTickSec}s.`,
-          }, preAttemptStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          }),
         ],
       };
     }
@@ -1029,6 +1098,13 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
           nextProtocolState.progressState.availableInterventionIds,
           nextDisplayState,
         );
+        const resultContext = buildInterventionResultContext(
+          protocol,
+          nextProtocolState.progressState,
+          nextProtocolState.advancedRouteId,
+          requiredStepDelta,
+          nextStateAwareAvailableInterventionIds,
+        );
 
         return {
           ...state,
@@ -1038,15 +1114,16 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
           protocolRuntime: nextProtocolState.runtimeState,
           protocolProgress: nextProtocolState.progressState,
           activeInterventions: nextActiveInterventions,
+          acceptedInterventionIds: [...state.acceptedInterventionIds, interventionId],
           eventQueue: [
             ...state.eventQueue,
-            buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+            buildInterventionEvent({
               intervention_id: interventionId,
               rejected: false,
               message: 'Successful administration.',
-              advanced_route_id: nextProtocolState.advancedRouteId,
-              required_step_delta: requiredStepDelta,
-            }, nextStateAwareAvailableInterventionIds),
+              ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+              ...(resultContext ? { result_context: resultContext } : {}),
+            }),
           ],
         };
       }
@@ -1057,6 +1134,13 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         nextProtocolState.progressState.availableInterventionIds,
         nextDisplayState,
       );
+      const resultContext = buildInterventionResultContext(
+        protocol,
+        nextProtocolState.progressState,
+        nextProtocolState.advancedRouteId,
+        requiredStepDelta,
+        nextStateAwareAvailableInterventionIds,
+      );
 
       return {
         ...state,
@@ -1065,15 +1149,16 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
         protocolProgress: nextProtocolState.progressState,
         activeInterventions: nextActiveInterventions,
         displayState: nextDisplayState,
+        acceptedInterventionIds: [...state.acceptedInterventionIds, interventionId],
         eventQueue: [
           ...state.eventQueue,
-          buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+          buildInterventionEvent({
             intervention_id: interventionId,
             rejected: false,
             message: 'Administered correctly — no immediate physiological response. Continue protocol.',
-            advanced_route_id: nextProtocolState.advancedRouteId,
-            required_step_delta: requiredStepDelta,
-          }, nextStateAwareAvailableInterventionIds),
+            ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+            ...(resultContext ? { result_context: resultContext } : {}),
+          }),
         ],
       };
     }
@@ -1084,6 +1169,13 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
       nextProtocolState.progressState.availableInterventionIds,
       nextDisplayState,
     );
+    const resultContext = buildInterventionResultContext(
+      protocol,
+      nextProtocolState.progressState,
+      nextProtocolState.advancedRouteId,
+      requiredStepDelta,
+      nextStateAwareAvailableInterventionIds,
+    );
 
     return {
       ...state,
@@ -1092,15 +1184,16 @@ function engineReducer(state: EngineState, action: EngineAction): EngineState {
       sequenceIndex: nextSequenceIndex,
       protocolRuntime: nextProtocolState.runtimeState,
       protocolProgress: nextProtocolState.progressState,
+      acceptedInterventionIds: [...state.acceptedInterventionIds, interventionId],
       eventQueue: [
         ...state.eventQueue,
-        buildInterventionEvent(protocol, preAttemptProtocolProgress, {
+        buildInterventionEvent({
           intervention_id: interventionId,
           rejected: false,
           message: 'Treatment started.',
-          advanced_route_id: nextProtocolState.advancedRouteId,
-          required_step_delta: requiredStepDelta,
-        }, nextStateAwareAvailableInterventionIds),
+          ...(preAttemptContext ? { attempt_context: preAttemptContext } : {}),
+          ...(resultContext ? { result_context: resultContext } : {}),
+        }),
       ],
     };
   }
@@ -1290,6 +1383,9 @@ export function useScenarioEngine(scenario: Scenario | null, onEvent?: (event: E
   const previousScenarioRef = useRef<Scenario | null>(scenario);
   const flushedEventCountRef = useRef(0);
   const freezeEngineRef = useRef(isEngineFrozenForE2E());
+  const stateAwareAvailableInterventionIds = scenario && state.displayState
+    ? deriveStateAwareAvailableInterventionIds(scenario, state.protocolProgress.availableInterventionIds, state.displayState)
+    : [];
 
   useEffect(() => {
     if (previousScenarioRef.current === scenario) {
@@ -1350,9 +1446,12 @@ export function useScenarioEngine(scenario: Scenario | null, onEvent?: (event: E
     completedRequiredSteps: state.protocolProgress.completedRequiredSteps,
     requiredStepCount: state.protocolProgress.requiredStepCount,
     availableInterventionIds: state.protocolProgress.availableInterventionIds,
+    stateAwareAvailableInterventionIds,
     activeRouteId: state.protocolProgress.activeRouteId,
     activatedRouteIds: state.protocolProgress.activatedRouteIds,
     completedRouteIds: state.protocolProgress.completedRouteIds,
+    routeStates: Object.values(state.protocolProgress.routeStates),
+    acceptedInterventionIds: state.acceptedInterventionIds,
     successHoldStarts: state.successHoldStarts,
     failureHoldStarts: state.failureHoldStarts,
   };

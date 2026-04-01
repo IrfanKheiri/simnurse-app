@@ -37,6 +37,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['defibrillate', 'cpr', 'establish_iv', 'epinephrine_1mg', 'amiodarone_300mg'],
+    protocol: {
+      primary: {
+        steps: ['defibrillate', 'cpr', 'establish_iv', 'epinephrine_1mg', 'amiodarone_300mg'],
+      },
+    },
     interventions: {
       cpr: {
         duration_sec: 120,
@@ -99,6 +104,11 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['cpr', 'establish_iv', 'epinephrine_1mg'],
+    protocol: {
+      primary: {
+        steps: ['cpr', 'establish_iv', 'epinephrine_1mg'],
+      },
+    },
     interventions: {
       cpr: {
         duration_sec: 120,
@@ -145,6 +155,11 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['defibrillate', 'cpr', 'establish_iv', 'epinephrine_1mg', 'amiodarone_300mg'],
+    protocol: {
+      primary: {
+        steps: ['defibrillate', 'cpr', 'establish_iv', 'epinephrine_1mg', 'amiodarone_300mg'],
+      },
+    },
     interventions: {
       cpr: {
         duration_sec: 120,
@@ -202,6 +217,19 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['cpr', 'establish_iv', 'normal_saline_bolus', 'epinephrine_1mg'],
+    protocol: {
+      primary: {
+        steps: ['cpr', 'establish_iv', 'normal_saline_bolus'],
+      },
+      branches: [
+        {
+          route_id: 'epinephrine_optional_branch',
+          activation: { after_intervention: 'establish_iv' },
+          required: false,
+          steps: ['epinephrine_1mg'],
+        },
+      ],
+    },
     interventions: {
       cpr: {
         duration_sec: 120,
@@ -236,7 +264,8 @@ export const seedScenarios: Scenario[] = [
   },
 
   // Scenario 5 — adult_pea_hypoxia
-  // Changes: rescue_breathing.success_chance 0.8→0.45, intubation.duration_sec 600→150
+  // Changes: rescue_breathing.success_chance 0.8→0.45, intubation.duration_sec 600→150,
+  //   route-based advanced-airway optional branch added after rescue_breathing while preserving legacy completion
   {
     scenario_id: 'adult_pea_hypoxia',
     title: 'Adult PEA (Hypoxia/Drowning)',
@@ -254,6 +283,19 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['cpr', 'rescue_breathing', 'intubation', 'establish_iv', 'epinephrine_1mg'],
+    protocol: {
+      primary: {
+        steps: ['cpr', 'rescue_breathing', 'establish_iv', 'epinephrine_1mg'],
+      },
+      branches: [
+        {
+          route_id: 'advanced_airway_optional_branch',
+          activation: { after_intervention: 'rescue_breathing' },
+          required: false,
+          steps: ['intubation'],
+        },
+      ],
+    },
     interventions: {
       cpr: {
         duration_sec: 120,
@@ -318,6 +360,11 @@ export const seedScenarios: Scenario[] = [
       { vital: 'hr', modifier: -1, interval_sec: 30 },
     ],
     expected_sequence: ['check_responsiveness', 'sternal_rub_stimulation', 'call_911', 'rescue_breathing', 'naloxone_intranasal_4mg', 'naloxone_intranasal_repeat'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'sternal_rub_stimulation', 'call_911', 'rescue_breathing', 'naloxone_intranasal_4mg', 'naloxone_intranasal_repeat'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -665,6 +712,8 @@ export const seedScenarios: Scenario[] = [
   // Medical accuracy fix: added establish_iv and iv_fluid_bolus_anaphylaxis to expected_sequence —
   //   500–1000 mL IV NS bolus is mandatory for anaphylaxis with hypotension (BP=75/40) per AHA/ACAAI guidelines;
   //   IM epinephrine correctly remains first (no IV needed for IM route)
+  // Route-aware pilot: advanced airway escalation is optional after initial oxygen support while
+  //   preserving the authored teaching spine and legacy outcome-driven completion behavior
   {
     scenario_id: 'anaphylactic_shock',
     title: 'Anaphylactic Shock Progression',
@@ -685,6 +734,19 @@ export const seedScenarios: Scenario[] = [
       { vital: 'bp', modifier: -1, interval_sec: 20 },
     ],
     expected_sequence: ['epinephrine_im_0_5mg', 'oxygen_nrb', 'establish_iv', 'iv_fluid_bolus_anaphylaxis', 'intubation'],
+    protocol: {
+      primary: {
+        steps: ['epinephrine_im_0_5mg', 'oxygen_nrb', 'establish_iv', 'iv_fluid_bolus_anaphylaxis'],
+      },
+      branches: [
+        {
+          route_id: 'airway_escalation_optional_branch',
+          activation: { after_intervention: 'oxygen_nrb' },
+          required: false,
+          steps: ['intubation'],
+        },
+      ],
+    },
     interventions: {
       establish_iv: {
         duration_sec: 60,
@@ -758,6 +820,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['aspirin_324mg', 'ticagrelor_180mg', 'nitroglycerin_04mg', 'establish_iv', 'heparin_bolus', 'activate_cath_lab'],
+    protocol: {
+      primary: {
+        steps: ['aspirin_324mg', 'ticagrelor_180mg', 'nitroglycerin_04mg', 'establish_iv', 'heparin_bolus', 'activate_cath_lab'],
+      },
+    },
     interventions: {
       aspirin_324mg: {
         duration_sec: 1800,
@@ -816,6 +883,8 @@ export const seedScenarios: Scenario[] = [
   // Scenario 13 — adult_stroke_cva
   // Changes: expected_sequence updated, ct_brain_noncontrast & labetalol_10mg added,
   //          alteplase.duration_sec 1800→3600, success_conditions bp max 145→180
+  // Batch 5 hardening: preserve the authored thrombolysis teaching spine via a primary-only route,
+  //   while keeping legacy outcome-driven completion because BP control can satisfy success before alteplase
   {
     scenario_id: 'adult_stroke_cva',
     title: 'Adult Stroke (CVA)',
@@ -833,6 +902,11 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['check_glucose', 'establish_iv', 'ct_brain_noncontrast', 'labetalol_10mg', 'alteplase'],
+    protocol: {
+      primary: {
+        steps: ['check_glucose', 'establish_iv', 'ct_brain_noncontrast', 'labetalol_10mg', 'alteplase'],
+      },
+    },
     interventions: {
       check_glucose: {
         duration_sec: 10,
@@ -887,7 +961,12 @@ export const seedScenarios: Scenario[] = [
     scenario_id: 'pediatric_respiratory_arrest_asthma',
     title: 'Pediatric Resp. Arrest (Asthma)',
     patient: { name: 'Liam Park', age: '9yo', gender: 'M' },
-    meta: { difficulty: 'Advanced', domain: 'Pediatric', estimatedDurationSec: 900, protocol: 'PALS' },
+    meta: {
+      difficulty: 'Advanced',
+      domain: 'Pediatric',
+      estimatedDurationSec: 900,
+      protocol: 'PALS',
+    },
     conclusion: 'Paediatric severe asthma exacerbation managed with bronchodilators, steroids, and respiratory support. Patient stabilized and admitted to PICU for continued monitoring.',
     initial_state: {
       hr: 160,
@@ -903,6 +982,20 @@ export const seedScenarios: Scenario[] = [
       { vital: 'hr', modifier: -2, interval_sec: 20 },
     ],
     expected_sequence: ['high_flow_oxygen', 'albuterol_nebulizer', 'ipratropium_nebulizer', 'methylprednisolone_iv', 'magnesium_sulfate_iv', 'epinephrine_im_pediatric', 'rescue_breathing', 'intubation'],
+    protocol: {
+      primary: {
+        steps: [
+          'high_flow_oxygen',
+          'albuterol_nebulizer',
+          'ipratropium_nebulizer',
+          'methylprednisolone_iv',
+          'magnesium_sulfate_iv',
+          'epinephrine_im_pediatric',
+          'rescue_breathing',
+          'intubation',
+        ],
+      },
+    },
     interventions: {
       magnesium_sulfate_iv: {
         duration_sec: 1200,
@@ -949,7 +1042,7 @@ export const seedScenarios: Scenario[] = [
         duration_sec: 600,
         priority: 100,
         success_chance: 0.9,
-        success_state: { spo2: 99, hr: 110, rr: 20, pulsePresent: true },
+        success_state: { spo2: 99, hr: 110, rr: 20, rhythm: 'Sinus', pulsePresent: true },
         rationale: 'Endotracheal intubation with mechanical ventilation is the definitive airway intervention for respiratory failure unresponsive to pharmacological therapy; it must be performed before apnoea occurs in deteriorating paediatric asthma.',
       },
       epinephrine_im_pediatric: {
@@ -990,6 +1083,11 @@ export const seedScenarios: Scenario[] = [
     },
     baseline_progressions: [],
     expected_sequence: ['cpr', 'defibrillate_pediatric', 'establish_iv', 'epinephrine_peds_01mgkg', 'amiodarone_peds_5mgkg'],
+    protocol: {
+      primary: {
+        steps: ['cpr', 'defibrillate_pediatric', 'establish_iv', 'epinephrine_peds_01mgkg', 'amiodarone_peds_5mgkg'],
+      },
+    },
     interventions: {
       cpr: {
         duration_sec: 120,
@@ -1059,6 +1157,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'cpr_30_2', 'open_airway_head_tilt_chin_lift', 'rescue_breathing', 'aed_attach', 'resume_cpr_post_shock'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'call_911', 'cpr_30_2', 'open_airway_head_tilt_chin_lift', 'rescue_breathing', 'aed_attach', 'resume_cpr_post_shock'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1145,6 +1248,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2', 'open_airway_head_tilt_chin_lift', 'bag_valve_mask', 'switch_compressor_roles', 'aed_attach', 'resume_cpr_post_shock'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2', 'open_airway_head_tilt_chin_lift', 'bag_valve_mask', 'switch_compressor_roles', 'aed_attach', 'resume_cpr_post_shock'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1244,6 +1352,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'cpr_30_2', 'aed_power_on', 'aed_attach_pads', 'aed_analyze', 'aed_shock', 'resume_cpr_post_shock'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'call_911', 'cpr_30_2', 'aed_power_on', 'aed_attach_pads', 'aed_analyze', 'aed_shock', 'resume_cpr_post_shock'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1341,6 +1454,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2_child', 'rescue_breathing_child', 'aed_attach', 'resume_cpr_post_shock'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_30_2_child', 'rescue_breathing_child', 'aed_attach', 'resume_cpr_post_shock'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1430,6 +1548,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_15_2_child', 'bag_valve_mask_child', 'switch_compressor_roles', 'aed_attach', 'resume_cpr_post_shock'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'call_911', 'check_carotid_pulse', 'cpr_15_2_child', 'bag_valve_mask_child', 'switch_compressor_roles', 'aed_attach', 'resume_cpr_post_shock'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1501,6 +1624,8 @@ export const seedScenarios: Scenario[] = [
   // BLS audit (CRITICAL): AHA lone-rescuer infant protocol — 2 min CPR BEFORE calling 911
   //   Reordered: check_responsiveness → check_brachial_pulse → open_airway → cpr → rescue_breathing → call_911
   //   Fixed message: "lower half of sternum" → "just below the nipple line"
+  // Batch 4 hardening: preserve the authored lone-rescuer teaching spine via a primary-only route,
+  //   while keeping legacy outcome-driven completion because ROSC can occur before the final call_911 teaching step
   {
     scenario_id: 'bls_infant_cardiac_arrest',
     title: 'Infant Cardiac Arrest — Single Rescuer',
@@ -1526,6 +1651,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'check_brachial_pulse', 'open_airway_head_tilt_chin_lift', 'cpr_30_2_infant_2finger', 'rescue_breathing_infant', 'call_911'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'check_brachial_pulse', 'open_airway_head_tilt_chin_lift', 'cpr_30_2_infant_2finger', 'rescue_breathing_infant', 'call_911'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1582,6 +1712,8 @@ export const seedScenarios: Scenario[] = [
   // Two-rescuer infant CPR: 15:2, 2-thumb encircling technique, coordinated ventilations
   // BLS audit: added check_responsiveness (X1), call_911 (X2 — after check_responsiveness, second rescuer calls),
   //   check_brachial_pulse (X3)
+  // Batch 4 hardening: preserve the authored two-rescuer teaching spine via a primary-only route,
+  //   while keeping legacy outcome-driven completion because ROSC can occur before the final role-switch teaching step
   {
     scenario_id: 'bls_infant_two_rescuer_cpr',
     title: 'Infant Cardiac Arrest — Two-Rescuer',
@@ -1607,6 +1739,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['check_responsiveness', 'call_911', 'check_brachial_pulse', 'cpr_15_2_infant_2thumb', 'bag_valve_mask_infant', 'switch_compressor_roles'],
+    protocol: {
+      primary: {
+        steps: ['check_responsiveness', 'call_911', 'check_brachial_pulse', 'cpr_15_2_infant_2thumb', 'bag_valve_mask_infant', 'switch_compressor_roles'],
+      },
+    },
     interventions: {
       check_responsiveness: {
         duration_sec: 10,
@@ -1759,6 +1896,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['call_911', 'lower_to_ground', 'cpr_30_2', 'look_in_mouth_before_breath', 'rescue_breathing'],
+    protocol: {
+      primary: {
+        steps: ['call_911', 'lower_to_ground', 'cpr_30_2', 'look_in_mouth_before_breath', 'rescue_breathing'],
+      },
+    },
     interventions: {
       call_911: {
         duration_sec: 15,
@@ -2000,6 +2142,11 @@ export const seedScenarios: Scenario[] = [
       },
     ],
     expected_sequence: ['remove_from_water', 'check_responsiveness', 'call_911', 'open_airway_head_tilt_chin_lift', 'initial_rescue_breaths_5', 'cpr_30_2', 'rescue_breathing', 'dry_chest_before_aed', 'aed_attach'],
+    protocol: {
+      primary: {
+        steps: ['remove_from_water', 'check_responsiveness', 'call_911', 'open_airway_head_tilt_chin_lift', 'initial_rescue_breaths_5', 'cpr_30_2', 'rescue_breathing', 'dry_chest_before_aed', 'aed_attach'],
+      },
+    },
     interventions: {
       remove_from_water: {
         duration_sec: 15,

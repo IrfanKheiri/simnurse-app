@@ -141,6 +141,34 @@ describe('shockable arrest teaching flow authoring', () => {
 });
 
 describe('route-based ACLS pilot authoring', () => {
+  it('defines explicit activation for every seeded non-primary route', () => {
+    const routeAwareScenarios = seedScenarios.filter(
+      (scenario) => (scenario.protocol?.branches?.length ?? 0) > 0 || (scenario.protocol?.rescues?.length ?? 0) > 0,
+    );
+
+    expect(routeAwareScenarios.length).toBeGreaterThan(0);
+
+    for (const scenario of routeAwareScenarios) {
+      for (const route of [
+        ...(scenario.protocol?.branches ?? []),
+        ...(scenario.protocol?.rescues ?? []),
+      ]) {
+        expect(
+          route.activation,
+          `${scenario.scenario_id}:${route.route_id} must declare explicit activation for the hardened route contract`,
+        ).toBeDefined();
+
+        const hasSupportedActivationTrigger = route.activation?.after_intervention !== undefined
+          || route.activation?.after_state_change !== undefined;
+
+        expect(
+          hasSupportedActivationTrigger,
+          `${scenario.scenario_id}:${route.route_id} must use after_intervention and/or after_state_change activation`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it('authors adult_unstable_bradycardia with an optional pacing branch after IV while preserving the teaching spine', () => {
     const scenario = getScenario('adult_unstable_bradycardia');
     const pacingBranch = scenario.protocol?.branches?.find((route) => route.route_id === 'pacing_optional_branch');
@@ -159,6 +187,490 @@ describe('route-based ACLS pilot authoring', () => {
     expect(pacingBranch?.steps).toEqual(['transcutaneous_pacing']);
     expect(pacingBranch?.activation?.after_intervention).toBe('establish_iv');
     expect(pacingBranch?.required).toBe(false);
+  });
+
+  it('authors adult_pea_hypoxia with an optional advanced-airway branch after rescue_breathing while preserving the teaching spine', () => {
+    const scenario = getScenario('adult_pea_hypoxia');
+    const advancedAirwayBranch = scenario.protocol?.branches?.find(
+      (route) => route.route_id === 'advanced_airway_optional_branch',
+    );
+
+    expect(scenario.expected_sequence).toEqual([
+      'cpr',
+      'rescue_breathing',
+      'intubation',
+      'establish_iv',
+      'epinephrine_1mg',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'cpr',
+      'rescue_breathing',
+      'establish_iv',
+      'epinephrine_1mg',
+    ]);
+    expect(advancedAirwayBranch?.steps).toEqual(['intubation']);
+    expect(advancedAirwayBranch?.activation?.after_intervention).toBe('rescue_breathing');
+    expect(advancedAirwayBranch?.required).toBe(false);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors adult_pea_hypovolemia with an optional epinephrine branch after IV while preserving the teaching spine', () => {
+    const scenario = getScenario('adult_pea_hypovolemia');
+    const epinephrineBranch = scenario.protocol?.branches?.find(
+      (route) => route.route_id === 'epinephrine_optional_branch',
+    );
+
+    expect(scenario.expected_sequence).toEqual([
+      'cpr',
+      'establish_iv',
+      'normal_saline_bolus',
+      'epinephrine_1mg',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'cpr',
+      'establish_iv',
+      'normal_saline_bolus',
+    ]);
+    expect(epinephrineBranch?.steps).toEqual(['epinephrine_1mg']);
+    expect(epinephrineBranch?.activation?.after_intervention).toBe('establish_iv');
+    expect(epinephrineBranch?.required).toBe(false);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors anaphylactic_shock with an optional airway-escalation branch after oxygen while preserving the teaching spine', () => {
+    const scenario = getScenario('anaphylactic_shock');
+    const airwayBranch = scenario.protocol?.branches?.find(
+      (route) => route.route_id === 'airway_escalation_optional_branch',
+    );
+
+    expect(scenario.expected_sequence).toEqual([
+      'epinephrine_im_0_5mg',
+      'oxygen_nrb',
+      'establish_iv',
+      'iv_fluid_bolus_anaphylaxis',
+      'intubation',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'epinephrine_im_0_5mg',
+      'oxygen_nrb',
+      'establish_iv',
+      'iv_fluid_bolus_anaphylaxis',
+    ]);
+    expect(airwayBranch?.steps).toEqual(['intubation']);
+    expect(airwayBranch?.activation?.after_intervention).toBe('oxygen_nrb');
+    expect(airwayBranch?.required).toBe(false);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors adult_respiratory_arrest_opioid as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('adult_respiratory_arrest_opioid');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'sternal_rub_stimulation',
+      'call_911',
+      'rescue_breathing',
+      'naloxone_intranasal_4mg',
+      'naloxone_intranasal_repeat',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'sternal_rub_stimulation',
+      'call_911',
+      'rescue_breathing',
+      'naloxone_intranasal_4mg',
+      'naloxone_intranasal_repeat',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors pediatric_respiratory_arrest_asthma as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('pediatric_respiratory_arrest_asthma');
+
+    expect(scenario.expected_sequence).toEqual([
+      'high_flow_oxygen',
+      'albuterol_nebulizer',
+      'ipratropium_nebulizer',
+      'methylprednisolone_iv',
+      'magnesium_sulfate_iv',
+      'epinephrine_im_pediatric',
+      'rescue_breathing',
+      'intubation',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual(scenario.expected_sequence);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors adult_stroke_cva as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('adult_stroke_cva');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_glucose',
+      'establish_iv',
+      'ct_brain_noncontrast',
+      'labetalol_10mg',
+      'alteplase',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_glucose',
+      'establish_iv',
+      'ct_brain_noncontrast',
+      'labetalol_10mg',
+      'alteplase',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors acs_stemi as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('acs_stemi');
+
+    expect(scenario.expected_sequence).toEqual([
+      'aspirin_324mg',
+      'ticagrelor_180mg',
+      'nitroglycerin_04mg',
+      'establish_iv',
+      'heparin_bolus',
+      'activate_cath_lab',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'aspirin_324mg',
+      'ticagrelor_180mg',
+      'nitroglycerin_04mg',
+      'establish_iv',
+      'heparin_bolus',
+      'activate_cath_lab',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors bls_adult_choking_unresponsive as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('bls_adult_choking_unresponsive');
+
+    expect(scenario.expected_sequence).toEqual([
+      'call_911',
+      'lower_to_ground',
+      'cpr_30_2',
+      'look_in_mouth_before_breath',
+      'rescue_breathing',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'call_911',
+      'lower_to_ground',
+      'cpr_30_2',
+      'look_in_mouth_before_breath',
+      'rescue_breathing',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors bls_drowning_submersion as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('bls_drowning_submersion');
+
+    expect(scenario.expected_sequence).toEqual([
+      'remove_from_water',
+      'check_responsiveness',
+      'call_911',
+      'open_airway_head_tilt_chin_lift',
+      'initial_rescue_breaths_5',
+      'cpr_30_2',
+      'rescue_breathing',
+      'dry_chest_before_aed',
+      'aed_attach',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'remove_from_water',
+      'check_responsiveness',
+      'call_911',
+      'open_airway_head_tilt_chin_lift',
+      'initial_rescue_breaths_5',
+      'cpr_30_2',
+      'rescue_breathing',
+      'dry_chest_before_aed',
+      'aed_attach',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors adult_vfib_arrest_witnessed as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('adult_vfib_arrest_witnessed');
+
+    expect(scenario.expected_sequence).toEqual([
+      'defibrillate',
+      'cpr',
+      'establish_iv',
+      'epinephrine_1mg',
+      'amiodarone_300mg',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'defibrillate',
+      'cpr',
+      'establish_iv',
+      'epinephrine_1mg',
+      'amiodarone_300mg',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors adult_asystole_unwitnessed as a primary-route-only protocol while preserving legacy completion behavior', () => {
+    const scenario = getScenario('adult_asystole_unwitnessed');
+
+    expect(scenario.expected_sequence).toEqual([
+      'cpr',
+      'establish_iv',
+      'epinephrine_1mg',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'cpr',
+      'establish_iv',
+      'epinephrine_1mg',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors adult_pulseless_vtach as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('adult_pulseless_vtach');
+
+    expect(scenario.expected_sequence).toEqual([
+      'defibrillate',
+      'cpr',
+      'establish_iv',
+      'epinephrine_1mg',
+      'amiodarone_300mg',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'defibrillate',
+      'cpr',
+      'establish_iv',
+      'epinephrine_1mg',
+      'amiodarone_300mg',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors pediatric_pulseless_vfib as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('pediatric_pulseless_vfib');
+
+    expect(scenario.expected_sequence).toEqual([
+      'cpr',
+      'defibrillate_pediatric',
+      'establish_iv',
+      'epinephrine_peds_01mgkg',
+      'amiodarone_peds_5mgkg',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'cpr',
+      'defibrillate_pediatric',
+      'establish_iv',
+      'epinephrine_peds_01mgkg',
+      'amiodarone_peds_5mgkg',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors bls_adult_cardiac_arrest_bystander as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('bls_adult_cardiac_arrest_bystander');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'cpr_30_2',
+      'open_airway_head_tilt_chin_lift',
+      'rescue_breathing',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'cpr_30_2',
+      'open_airway_head_tilt_chin_lift',
+      'rescue_breathing',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors bls_adult_two_rescuer_cpr as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('bls_adult_two_rescuer_cpr');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_carotid_pulse',
+      'cpr_30_2',
+      'open_airway_head_tilt_chin_lift',
+      'bag_valve_mask',
+      'switch_compressor_roles',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_carotid_pulse',
+      'cpr_30_2',
+      'open_airway_head_tilt_chin_lift',
+      'bag_valve_mask',
+      'switch_compressor_roles',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors bls_adult_aed_public_access as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('bls_adult_aed_public_access');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'cpr_30_2',
+      'aed_power_on',
+      'aed_attach_pads',
+      'aed_analyze',
+      'aed_shock',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'cpr_30_2',
+      'aed_power_on',
+      'aed_attach_pads',
+      'aed_analyze',
+      'aed_shock',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors bls_child_cardiac_arrest as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('bls_child_cardiac_arrest');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_carotid_pulse',
+      'cpr_30_2_child',
+      'rescue_breathing_child',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_carotid_pulse',
+      'cpr_30_2_child',
+      'rescue_breathing_child',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors bls_child_two_rescuer_cpr as a primary-route-only protocol while preserving the strict teaching spine', () => {
+    const scenario = getScenario('bls_child_two_rescuer_cpr');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_carotid_pulse',
+      'cpr_15_2_child',
+      'bag_valve_mask_child',
+      'switch_compressor_roles',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_carotid_pulse',
+      'cpr_15_2_child',
+      'bag_valve_mask_child',
+      'switch_compressor_roles',
+      'aed_attach',
+      'resume_cpr_post_shock',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
+  });
+
+  it('authors bls_infant_cardiac_arrest as a primary-route-only protocol while preserving the legacy teaching spine', () => {
+    const scenario = getScenario('bls_infant_cardiac_arrest');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'check_brachial_pulse',
+      'open_airway_head_tilt_chin_lift',
+      'cpr_30_2_infant_2finger',
+      'rescue_breathing_infant',
+      'call_911',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'check_brachial_pulse',
+      'open_airway_head_tilt_chin_lift',
+      'cpr_30_2_infant_2finger',
+      'rescue_breathing_infant',
+      'call_911',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('authors bls_infant_two_rescuer_cpr as a primary-route-only protocol while preserving the legacy teaching spine', () => {
+    const scenario = getScenario('bls_infant_two_rescuer_cpr');
+
+    expect(scenario.expected_sequence).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_brachial_pulse',
+      'cpr_15_2_infant_2thumb',
+      'bag_valve_mask_infant',
+      'switch_compressor_roles',
+    ]);
+    expect(scenario.protocol?.primary.steps).toEqual([
+      'check_responsiveness',
+      'call_911',
+      'check_brachial_pulse',
+      'cpr_15_2_infant_2thumb',
+      'bag_valve_mask_infant',
+      'switch_compressor_roles',
+    ]);
+    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
+    expect(scenario.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
   });
 
   it('authors adult_vtach_pulse with an optional post-cardioversion branch while preserving the teaching spine', () => {
@@ -228,6 +740,18 @@ describe('scenario completion policy authoring', () => {
     expect(adultUnstableBradycardia.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
   });
 
+  it('keeps adult_pea_hypoxia on the legacy completion policy', () => {
+    const adultPeaHypoxia = getScenario('adult_pea_hypoxia');
+
+    expect(adultPeaHypoxia.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps adult_pea_hypovolemia on the legacy completion policy', () => {
+    const adultPeaHypovolemia = getScenario('adult_pea_hypovolemia');
+
+    expect(adultPeaHypovolemia.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
   it('keeps adult_vtach_pulse on the legacy completion policy', () => {
     const adultVtachPulse = getScenario('adult_vtach_pulse');
 
@@ -238,6 +762,42 @@ describe('scenario completion policy authoring', () => {
     const adultSvt = getScenario('adult_svt');
 
     expect(adultSvt.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps adult_stroke_cva on the legacy completion policy', () => {
+    const adultStroke = getScenario('adult_stroke_cva');
+
+    expect(adultStroke.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps acs_stemi on the legacy completion policy', () => {
+    const acsStemi = getScenario('acs_stemi');
+
+    expect(acsStemi.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps bls_adult_choking_unresponsive on the legacy completion policy', () => {
+    const adultChokingUnresponsive = getScenario('bls_adult_choking_unresponsive');
+
+    expect(adultChokingUnresponsive.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps bls_drowning_submersion on the legacy completion policy', () => {
+    const drowningSubmersion = getScenario('bls_drowning_submersion');
+
+    expect(drowningSubmersion.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps bls_infant_cardiac_arrest on the legacy completion policy', () => {
+    const infantSingleRescuer = getScenario('bls_infant_cardiac_arrest');
+
+    expect(infantSingleRescuer.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
+  });
+
+  it('keeps bls_infant_two_rescuer_cpr on the legacy completion policy', () => {
+    const infantTwoRescuer = getScenario('bls_infant_two_rescuer_cpr');
+
+    expect(infantTwoRescuer.meta?.completionPolicy ?? 'legacy_outcome_driven').toBe('legacy_outcome_driven');
   });
 });
 
@@ -356,6 +916,14 @@ describe('BLS source-of-truth authoring', () => {
       'cpr_15_2_infant_2thumb',
       'bag_valve_mask_infant',
       'switch_compressor_roles',
+    ]);
+
+    assertOrderedSteps('bls_adult_choking_unresponsive', [
+      'call_911',
+      'lower_to_ground',
+      'cpr_30_2',
+      'look_in_mouth_before_breath',
+      'rescue_breathing',
     ]);
 
     const infantChoking = getScenario('bls_infant_choking');

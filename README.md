@@ -192,6 +192,7 @@ For detailed information, see:
 - [Architecture](docs/architecture.md) - System design and runtime flow
 - [Functionality](docs/functionality.md) - Learner experience walkthrough
 - [Repository Structure](docs/repo-structure.md) - File organization
+- [Route-Aware Migration Plan Status](docs/plans/2026-03-31-next-phase-development-plan.md) - current migration baseline, completed route-aware scenarios, paused boundary after `pediatric_respiratory_arrest_asthma`, and pending higher-complexity scenarios requiring analysis-first follow-up
 
 ## Contributing
 

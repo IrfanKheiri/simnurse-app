@@ -103,6 +103,11 @@ export interface ScenarioProtocolSecondaryRoute {
   route_id: string;
   label?: string;
   steps: Array<string | ScenarioProtocolStep>;
+  /**
+   * Secondary routes activate only when one of their declared triggers fires.
+   * When both trigger lists are present, activation uses OR semantics.
+   * Omitting activation keeps a non-primary route inactive.
+   */
   activation?: ScenarioProtocolRouteActivation;
   required?: boolean;
 }
@@ -144,17 +149,35 @@ export interface StartEvent {
   snapshot: PatientState;
 }
 
+export interface InterventionAttemptContext {
+  available_intervention_ids: string[];
+  state_aware_available_intervention_ids?: string[];
+  active_route_id: string | null;
+  activated_route_ids: string[];
+}
+
+export interface InterventionResultContext extends InterventionAttemptContext {
+  advanced_route_id: string | null;
+  required_step_delta: number;
+}
+
+export type InterventionRejectionCategory =
+  | 'scenario_inactive'
+  | 'not_applicable'
+  | 'rescue_locked'
+  | 'sequence_deviation'
+  | 'rhythm_mismatch'
+  | 'already_applied'
+  | 'already_active';
+
 export interface InterventionEvent {
   type: 'intervention';
   intervention_id: string;
   message: string;
   rejected: boolean;
-  available_intervention_ids?: string[];
-  state_aware_available_intervention_ids?: string[];
-  active_route_id?: string | null;
-  activated_route_ids?: string[];
-  advanced_route_id?: string | null;
-  required_step_delta?: number;
+  rejection_category?: InterventionRejectionCategory;
+  attempt_context?: InterventionAttemptContext;
+  result_context?: InterventionResultContext;
 }
 
 export interface StateChangeEvent {

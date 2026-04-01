@@ -135,17 +135,52 @@ function getExpectedActionFromInterventionIds(
   };
 }
 
+function getInterventionAttemptContext(
+  log: Extract<SessionLogEvent, { event_type: 'intervention' }>,
+): Extract<EngineEvent, { type: 'intervention' }>['attempt_context'] {
+  if (log.details.attempt_context) {
+    return log.details.attempt_context;
+  }
+
+  const legacyDetails = log.details as Partial<{
+    available_intervention_ids: string[];
+    state_aware_available_intervention_ids: string[];
+    active_route_id: string | null;
+    activated_route_ids: string[];
+  }>;
+  const hasLegacyAttemptContext = Array.isArray(legacyDetails.available_intervention_ids)
+    || Array.isArray(legacyDetails.state_aware_available_intervention_ids)
+    || legacyDetails.active_route_id !== undefined
+    || Array.isArray(legacyDetails.activated_route_ids);
+
+  if (!hasLegacyAttemptContext) {
+    return undefined;
+  }
+
+  return {
+    available_intervention_ids: legacyDetails.available_intervention_ids ?? [],
+    ...(legacyDetails.state_aware_available_intervention_ids !== undefined
+      ? {
+          state_aware_available_intervention_ids: legacyDetails.state_aware_available_intervention_ids,
+        }
+      : {}),
+    active_route_id: legacyDetails.active_route_id ?? null,
+    activated_route_ids: legacyDetails.activated_route_ids ?? [],
+  };
+}
+
 function getExpectedActionFromStructuredMetadata(
   log: Extract<SessionLogEvent, { event_type: 'intervention' }>,
   scenario: Scenario | null,
 ): ExpectedActionInfo | null | undefined {
-  const stateAwareAvailableInterventionIds = log.details.state_aware_available_intervention_ids;
+  const attemptContext = getInterventionAttemptContext(log);
+  const stateAwareAvailableInterventionIds = attemptContext?.state_aware_available_intervention_ids;
 
   if (Array.isArray(stateAwareAvailableInterventionIds)) {
     return getExpectedActionFromInterventionIds(stateAwareAvailableInterventionIds, scenario);
   }
 
-  const availableInterventionIds = log.details.available_intervention_ids;
+  const availableInterventionIds = attemptContext?.available_intervention_ids;
 
   if (Array.isArray(availableInterventionIds)) {
     return getExpectedActionFromInterventionIds(availableInterventionIds, scenario);
@@ -167,7 +202,11 @@ export function buildActionFeedback(
 
   for (const log of interventionLogs) {
     const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
-    const feedbackMeta = getDebriefFeedbackMeta(log.details.rejected, log.details.message);
+    const feedbackMeta = getDebriefFeedbackMeta(
+      log.details.rejected,
+      log.details.message,
+      log.details.rejection_category,
+    );
 
     if (!log.details.rejected) {
       // Accepted — advance seqPos if this action matched the expected step
@@ -175,7 +214,7 @@ export function buildActionFeedback(
         seqPos++;
       }
     } else {
-      const structuredExpectedAction = feedbackMeta.categoryLabel === 'Sequencing issue'
+      const structuredExpectedAction = feedbackMeta.rejectionCategory === 'sequence_deviation'
         ? getExpectedActionFromStructuredMetadata(log, scenario)
         : undefined;
 
@@ -202,7 +241,11 @@ export function buildActionFeedback(
   // Map pass: construct ActionFeedback array
   return interventionLogs.map((log) => {
     const logId = log.id?.toString() ?? `${log.session_id}-${log.timestamp}`;
-    const feedbackMeta = getDebriefFeedbackMeta(log.details.rejected, log.details.message);
+    const feedbackMeta = getDebriefFeedbackMeta(
+      log.details.rejected,
+      log.details.message,
+      log.details.rejection_category,
+    );
 
     const expected = expectedMap.get(logId);
     const hasExpectedGuidance = expected !== undefined;
@@ -408,7 +451,22 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
     [persistEvent, showToast],
   );
 
-  const { state: vitals, status, elapsedSec, applyIntervention, activeInterventions, sequenceIndex, requiredStepCount, successHoldStarts, failureHoldStarts } = useScenarioEngine(
+  const {
+    state: vitals,
+    status,
+    elapsedSec,
+    applyIntervention,
+    activeInterventions,
+    sequenceIndex,
+    requiredStepCount,
+    availableInterventionIds,
+    stateAwareAvailableInterventionIds,
+    activeRouteId,
+    routeStates,
+    acceptedInterventionIds,
+    successHoldStarts,
+    failureHoldStarts,
+  } = useScenarioEngine(
     activeScenario,
     handleEngineEvent,
   );
@@ -718,6 +776,12 @@ function AppInner({ onScenarioActiveChange }: { onScenarioActiveChange: (active:
         <CheatOverlay
           scenario={activeScenario}
           sequenceIndex={sequenceIndex}
+          requiredStepCount={requiredStepCount}
+          availableInterventionIds={availableInterventionIds}
+          stateAwareAvailableInterventionIds={stateAwareAvailableInterventionIds}
+          activeRouteId={activeRouteId}
+          routeStates={routeStates}
+          acceptedInterventionIds={acceptedInterventionIds}
           onClose={() => setCheatVisible(false)}
         />
       )}
