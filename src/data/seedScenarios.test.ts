@@ -15,7 +15,7 @@ const aclsScenarios = seedScenarios.filter(scenario => scenario.meta?.protocol =
 const strictCompletionPolicyScenarioIds = [
   'adult_vfib_arrest_witnessed',
   'adult_pulseless_vtach',
-  'pediatric_pulseless_vfib',
+  'pals_comprehensive',
   'bls_adult_cardiac_arrest_bystander',
   'bls_adult_two_rescuer_cpr',
   'bls_adult_aed_public_access',
@@ -95,7 +95,7 @@ describe('shockable arrest teaching flow authoring', () => {
   const terminalSteps = {
     adult_vfib_arrest_witnessed: 'amiodarone_300mg',
     adult_pulseless_vtach: 'amiodarone_300mg',
-    pediatric_pulseless_vfib: 'amiodarone_peds_5mgkg',
+    pals_comprehensive: 'atropine_peds_002mgkg',
     bls_adult_cardiac_arrest_bystander: 'resume_cpr_post_shock',
     bls_adult_two_rescuer_cpr: 'resume_cpr_post_shock',
     bls_adult_aed_public_access: 'resume_cpr_post_shock',
@@ -104,6 +104,10 @@ describe('shockable arrest teaching flow authoring', () => {
   } as const;
 
   it('keeps full ROSC off pre-terminal expected steps', () => {
+    // Multi-phase scenarios may have intermediate ROSC that is NOT terminal
+    // (e.g., ROSC with bradycardia requiring further treatment).
+    const multiPhaseScenarios = ['pals_comprehensive'];
+
     for (const [scenarioId, terminalStep] of Object.entries(terminalSteps)) {
       const scenario = getScenario(scenarioId);
       const expectedSequence = scenario.expected_sequence ?? [];
@@ -113,7 +117,11 @@ describe('shockable arrest teaching flow authoring', () => {
         `${scenarioId} should end its teaching sequence on ${terminalStep}`,
       ).toBe(terminalStep);
 
-      for (const interventionId of expectedSequence.slice(0, -1)) {
+      const preTerminalSteps = expectedSequence.slice(0, -1);
+      for (const interventionId of preTerminalSteps) {
+        if (multiPhaseScenarios.includes(scenarioId)) {
+          continue;
+        }
         expect(
           isTerminalRoscState(scenario.interventions[interventionId]?.success_state),
           `${scenarioId}:${interventionId} should not encode full ROSC before the terminal teaching step`,
@@ -465,24 +473,36 @@ describe('route-based ACLS pilot authoring', () => {
     expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
   });
 
-  it('authors pediatric_pulseless_vfib as a primary-route-only protocol while preserving the strict teaching spine', () => {
-    const scenario = getScenario('pediatric_pulseless_vfib');
+  it('authors pals_comprehensive with branches while preserving the strict teaching spine', () => {
+    const scenario = getScenario('pals_comprehensive');
 
     expect(scenario.expected_sequence).toEqual([
       'cpr',
-      'defibrillate_pediatric',
+      'defibrillate_peds',
+      'cpr_post_shock',
+      'rescue_breathing',
       'establish_iv',
       'epinephrine_peds_01mgkg',
       'amiodarone_peds_5mgkg',
+      'oxygen_post_ros',
+      'atropine_peds_002mgkg',
     ]);
     expect(scenario.protocol?.primary.steps).toEqual([
       'cpr',
-      'defibrillate_pediatric',
+      'defibrillate_peds',
+      'cpr_post_shock',
+      'rescue_breathing',
       'establish_iv',
       'epinephrine_peds_01mgkg',
       'amiodarone_peds_5mgkg',
+      'oxygen_post_ros',
+      'atropine_peds_002mgkg',
     ]);
-    expect(scenario.protocol?.branches ?? []).toHaveLength(0);
+    expect(scenario.protocol?.branches).toBeDefined();
+    expect(scenario.protocol?.branches).toHaveLength(3);
+    expect(scenario.protocol?.branches?.map(b => b.route_id)).toContain('advanced_airway_branch');
+    expect(scenario.protocol?.branches?.map(b => b.route_id)).toContain('pacing_branch');
+    expect(scenario.protocol?.branches?.map(b => b.route_id)).toContain('fluid_bolus_branch');
     expect(scenario.protocol?.rescues ?? []).toHaveLength(0);
     expect(scenario.meta?.completionPolicy).toBe('strict_sequence_required');
   });

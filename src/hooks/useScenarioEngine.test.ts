@@ -835,11 +835,11 @@ describe('useScenarioEngine', () => {
     expect(result.current.availableInterventionIds).toEqual(['establish_iv']);
   });
 
-  it('keeps pediatric_pulseless_vfib on a single required primary route after cpr', () => {
-    const scenario = getSeedScenario('pediatric_pulseless_vfib');
+  it('keeps pals_comprehensive on a single required primary route after cpr', () => {
+    const scenario = getSeedScenario('pals_comprehensive');
     const { result } = renderHook(() => useScenarioEngine(scenario));
 
-    expect(result.current.requiredStepCount).toBe(5);
+    expect(result.current.requiredStepCount).toBe(9);
     expect(result.current.availableInterventionIds).toEqual(['cpr']);
 
     act(() => {
@@ -847,10 +847,10 @@ describe('useScenarioEngine', () => {
     });
 
     expect(result.current.sequenceIndex).toBe(1);
-    expect(result.current.requiredStepCount).toBe(5);
+    expect(result.current.requiredStepCount).toBe(9);
     expect(result.current.activatedRouteIds).toEqual(['primary']);
-    expect(result.current.availableInterventionIds).toEqual(['defibrillate_pediatric']);
-    expect(result.current.stateAwareAvailableInterventionIds).toEqual(['defibrillate_pediatric']);
+    expect(result.current.availableInterventionIds).toEqual(['defibrillate_peds']);
+    expect(result.current.stateAwareAvailableInterventionIds).toEqual(['defibrillate_peds']);
     expect(result.current.acceptedInterventionIds).toEqual(['cpr']);
     expect(result.current.routeStates).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -858,7 +858,7 @@ describe('useScenarioEngine', () => {
         kind: 'primary',
         isActivated: true,
         isRequired: true,
-        nextInterventionId: 'defibrillate_pediatric',
+        nextInterventionId: 'defibrillate_peds',
       }),
     ]));
   });

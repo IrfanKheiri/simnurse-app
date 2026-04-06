@@ -273,28 +273,28 @@ describe('buildActionFeedback', () => {
     });
   });
 
-  it('uses structured primary-route metadata for pediatric_pulseless_vfib single-next-step guidance', () => {
+  it('uses structured primary-route metadata for pals_comprehensive single-next-step guidance', () => {
     expect(buildActionFeedback).toBeTypeOf('function');
 
-    const pediatricVfib = getSeedScenario('pediatric_pulseless_vfib');
+    const palsScenario = getSeedScenario('pals_comprehensive');
     const feedback = buildActionFeedback!([
       makeInterventionLog(1, {
         intervention_id: 'amiodarone_peds_5mgkg',
         rejected: true,
         rejection_category: 'sequence_deviation',
-        message: 'Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol. The next expected step is: Defibrillate Pediatric.',
+        message: 'Protocol Deviation: Incorrect sequence. This is not the appropriate next step in the protocol. The next expected step is: Defibrillate Peds.',
         attempt_context: {
-          available_intervention_ids: ['defibrillate_pediatric'],
-          state_aware_available_intervention_ids: ['defibrillate_pediatric'],
+          available_intervention_ids: ['defibrillate_peds'],
+          state_aware_available_intervention_ids: ['defibrillate_peds'],
           active_route_id: 'primary',
           activated_route_ids: ['primary'],
         },
-      }, pediatricVfib),
-    ], pediatricVfib);
+      }, palsScenario),
+    ], palsScenario);
 
     expect(feedback[0]).toMatchObject({
-      expectedActionLabel: 'Defibrillate — Pediatric (2 J/kg)',
-      expectedActionRationale: pediatricVfib.interventions.defibrillate_pediatric.rationale,
+      expectedActionLabel: 'Defibrillate — Pediatric (2–4 J/kg)',
+      expectedActionRationale: palsScenario.interventions.defibrillate_peds.rationale,
     });
   });
 

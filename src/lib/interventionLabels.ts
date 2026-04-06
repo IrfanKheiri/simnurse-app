@@ -87,6 +87,12 @@ export const INTERVENTION_COPY: Record<string, InterventionCopy> = {
   position_infant_face_down: { display: 'Position Infant Face-Down', short: 'Face Down' },
   iv_fluid_bolus_anaphylaxis: { display: 'IV Fluid Bolus (Anaphylaxis)', short: 'IV Fluid' },
   magnesium_sulfate_iv: { display: 'Magnesium Sulfate IV', short: 'Mag Sulf' },
+  defibrillate_peds: { display: 'Defibrillate — Pediatric (2–4 J/kg)', short: 'Defib', badge: 'PED DEFIB' },
+  cpr_post_shock: { display: 'Resume CPR Post-Shock', short: 'Rsm CPR', badge: 'CPR POST-SHOCK' },
+  oxygen_post_ros: { display: 'Post-ROSC Oxygen (Titrate to 94–99%)', short: 'O₂', badge: 'POST-ROSC O₂' },
+  atropine_peds_002mgkg: { display: 'Atropine 0.02mg/kg IV (Peds)', short: 'Atrop' },
+  transcutaneous_pacing_peds: { display: 'Transcutaneous Pacing — Pediatric', short: 'TCP', badge: 'PACING' },
+  normal_saline_bolus_peds: { display: 'Normal Saline Bolus — Pediatric (10–20mL/kg)', short: 'NS' },
 };
 
 export function humanizeInterventionId(interventionId: string): string {

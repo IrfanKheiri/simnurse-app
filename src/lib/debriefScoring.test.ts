@@ -190,8 +190,8 @@ describe('deriveDebriefSummary', () => {
     );
   });
 
-  it('counts remaining primary-route steps as omissions for strict pediatric_pulseless_vfib runs', () => {
-    const pediatricVfib = getSeedScenario('pediatric_pulseless_vfib');
+  it('counts remaining primary-route steps as omissions for strict pals_comprehensive runs', () => {
+    const palsScenario = getSeedScenario('pals_comprehensive');
 
     const summary = deriveDebriefSummary({
       actions: [
@@ -199,16 +199,16 @@ describe('deriveDebriefSummary', () => {
         { isCorrect: true },
       ],
       outcome: 'failed',
-      scenario: pediatricVfib,
+      scenario: palsScenario,
       completedRequiredSteps: 2,
-      requiredStepCount: 5,
+      requiredStepCount: 9,
     });
 
-    expect(pediatricVfib.meta?.completionPolicy).toBe('strict_sequence_required');
-    expect(summary.remainingRequiredSteps).toBe(3);
-    expect(summary.omissionCount).toBe(3);
+    expect(palsScenario.meta?.completionPolicy).toBe('strict_sequence_required');
+    expect(summary.remainingRequiredSteps).toBe(7);
+    expect(summary.omissionCount).toBe(7);
     expect(summary.strictSequenceIncomplete).toBe(true);
-    expect(summary.score).toBe(40);
+    expect(summary.score).toBe(22);
     expect(summary.clinicalConclusion).toContain(
       'The patient deteriorated before the full required sequence was completed',
     );

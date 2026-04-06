@@ -1063,15 +1063,17 @@ export const seedScenarios: Scenario[] = [
     ],
   },
 
-  // Scenario 15 — pediatric_pulseless_vfib
-  // Changes: expected_sequence updated, defibrillate & epinephrine_1mg removed,
-  //          defibrillate_pediatric/epinephrine_peds_01mgkg/amiodarone_peds_5mgkg added
+  // Scenario 15 — pals_comprehensive (replaces pediatric_pulseless_vfib)
+  // Comprehensive PALS scenario: VFib arrest → post-ROSC bradycardia management
+  // Covers: shockable rhythm treatment, rescue breathing, IV access, epinephrine,
+  //   amiodarone, post-ROSC oxygenation, atropine for bradycardia
+  // Branches: advanced airway (intubation), transcutaneous pacing, fluid bolus
   {
-    scenario_id: 'pediatric_pulseless_vfib',
-    title: 'Pediatric Pulseless Arrest (VFib)',
-    patient: { name: 'Sophie Grant', age: '7yo', gender: 'F' },
-    meta: { difficulty: 'Advanced', domain: 'Pediatric', estimatedDurationSec: 900, protocol: 'PALS', completionPolicy: 'strict_sequence_required' },
-    conclusion: 'Paediatric VFib arrest terminated with defibrillation and PALS medications. ROSC achieved; patient transferred to PICU for post-arrest care and neurological assessment.',
+    scenario_id: 'pals_comprehensive',
+    title: 'Pediatric Cardiac Arrest — Comprehensive PALS',
+    patient: { name: 'Jordan Rivera', age: '7yo', gender: 'M' },
+    meta: { difficulty: 'Advanced', domain: 'Pediatric', estimatedDurationSec: 600, protocol: 'PALS', completionPolicy: 'strict_sequence_required' },
+    conclusion: 'Paediatric cardiac arrest managed through full PALS algorithm: VFib defibrillation, post-ROSC bradycardia treatment. ROSC achieved with stable haemodynamics; patient transferred to PICU.',
     initial_state: {
       hr: 0,
       bp: '0/0',
@@ -1082,44 +1084,135 @@ export const seedScenarios: Scenario[] = [
       glucose: 100,
     },
     baseline_progressions: [],
-    expected_sequence: ['cpr', 'defibrillate_pediatric', 'establish_iv', 'epinephrine_peds_01mgkg', 'amiodarone_peds_5mgkg'],
+    scheduledStateChanges: [],
+    expected_sequence: [
+      'cpr',
+      'defibrillate_peds',
+      'cpr_post_shock',
+      'rescue_breathing',
+      'establish_iv',
+      'epinephrine_peds_01mgkg',
+      'amiodarone_peds_5mgkg',
+      'oxygen_post_ros',
+      'atropine_peds_002mgkg',
+    ],
     protocol: {
       primary: {
-        steps: ['cpr', 'defibrillate_pediatric', 'establish_iv', 'epinephrine_peds_01mgkg', 'amiodarone_peds_5mgkg'],
+        steps: [
+          'cpr',
+          'defibrillate_peds',
+          'cpr_post_shock',
+          'rescue_breathing',
+          'establish_iv',
+          'epinephrine_peds_01mgkg',
+          'amiodarone_peds_5mgkg',
+          'oxygen_post_ros',
+          'atropine_peds_002mgkg',
+        ],
       },
+      branches: [
+        {
+          route_id: 'advanced_airway_branch',
+          activation: { after_intervention: 'rescue_breathing' },
+          required: false,
+          steps: ['intubation'],
+        },
+        {
+          route_id: 'pacing_branch',
+          activation: { after_intervention: 'atropine_peds_002mgkg' },
+          required: false,
+          steps: ['transcutaneous_pacing_peds'],
+        },
+        {
+          route_id: 'fluid_bolus_branch',
+          activation: { after_intervention: 'establish_iv' },
+          required: false,
+          steps: ['normal_saline_bolus_peds'],
+        },
+      ],
     },
     interventions: {
       cpr: {
         duration_sec: 120,
         priority: 10,
-        state_overrides: { bp: '60/20' },
-        rationale: 'High-quality chest compressions (~2 inches at 100–120/min) maintain coronary and cerebral perfusion during paediatric cardiac arrest, and are performed before defibrillation to prime the myocardium per PALS 2020 guidelines.',
+        state_overrides: { bp: '60/20', spo2: 80 },
+        rationale: 'High-quality chest compressions (1/3 AP diameter, ~2 inches at 100–120/min) maintain coronary and cerebral perfusion during paediatric cardiac arrest; minimising interruptions is the single most critical CPR quality metric per PALS 2020 guidelines.',
+      },
+      defibrillate_peds: {
+        duration_sec: 10,
+        priority: 100,
+        requires_rhythm: ['VFib', 'VTach'],
+        rationale: 'Paediatric defibrillation at 2–4 J/kg using dose-attenuator pads is the only definitive treatment for shockable rhythms; weight-appropriate energy prevents myocardial injury while terminating VFib per PALS 2020 guidelines.',
+      },
+      cpr_post_shock: {
+        duration_sec: 120,
+        priority: 10,
+        state_overrides: { bp: '65/25', spo2: 82 },
+        rationale: 'Immediate CPR resumption after shock (within 10 seconds) maintains coronary perfusion during the peri-shock period when the stunned myocardium cannot generate effective output; this prevents re-arrest per PALS 2020 guidelines.',
+      },
+      rescue_breathing: {
+        duration_sec: 60,
+        priority: 8,
+        state_overrides: { spo2: 88 },
+        rationale: 'Rescue breathing with bag-valve-mask provides positive pressure ventilation during paediatric arrest; adequate oxygenation is essential for myocardial viability per PALS 2020 guidelines.',
       },
       establish_iv: {
         duration_sec: 60,
         priority: 80,
-        rationale: 'IV/IO access is the prerequisite for all pharmacological interventions in paediatric cardiac arrest; peripheral IV or intraosseous access must be established before epinephrine or antiarrhythmic drug administration per PALS 2020 guidelines.',
-      },
-      defibrillate_pediatric: {
-        duration_sec: 10,
-        priority: 100,
-        requires_rhythm: ['VFib', 'VTach'],
-        rationale: 'Paediatric defibrillation at 2–4 J/kg using dose-attenuator pads is the only definitive treatment for shockable rhythms in children; weight-appropriate energy prevents myocardial injury while terminating VFib per PALS 2020 guidelines.',
+        rationale: 'IV/IO access is required before all subsequent arrest medications; intraosseous access is preferred if IV cannot be rapidly established per PALS 2020 guidelines.',
       },
       epinephrine_peds_01mgkg: {
         duration_sec: 240,
-        priority: 5,
-        rationale: 'Epinephrine 0.01 mg/kg IV/IO every 3–5 minutes increases coronary perfusion pressure via alpha-1 vasoconstriction; it is the recommended vasopressor in paediatric pulseless arrest per PALS 2020 guidelines.',
+        priority: 50,
+        rationale: 'Epinephrine 0.01 mg/kg (0.1 mL/kg of 1:10,000) IV/IO every 3–5 minutes increases coronary perfusion pressure via alpha-1 vasoconstriction; first dose given after second shock in shock-refractory VFib per PALS 2020 guidelines.',
       },
       amiodarone_peds_5mgkg: {
         duration_sec: 600,
         priority: 6,
         success_chance: 1,
-        success_state: { rhythm: 'Sinus', hr: 115, bp: '85/50', spo2: 97, rr: 18, pulsePresent: true },
+        success_state: { rhythm: 'Sinus', hr: 45, bp: '80/50', spo2: 90, rr: 10, pulsePresent: true },
         rationale: 'Amiodarone 5 mg/kg IV/IO is the first-line antiarrhythmic for shock-refractory paediatric VFib/pVT; it prolongs action potential duration and reduces recurrence of ventricular fibrillation after defibrillation per PALS 2020 guidelines.',
       },
+      oxygen_post_ros: {
+        duration_sec: 600,
+        priority: 100,
+        state_overrides: { spo2: 98 },
+        rationale: 'Supplemental oxygen titrated to SpO₂ 94–99% corrects post-arrest hypoxaemia; both hypoxia and hyperoxia are harmful after ROSC, so oxygen should be titrated to the minimum needed to maintain SpO₂ ≥94% per PALS 2020 guidelines.',
+      },
+      atropine_peds_002mgkg: {
+        duration_sec: 300,
+        priority: 55,
+        success_chance: 1,
+        success_state: { hr: 85, bp: '90/55', rhythm: 'Sinus', spo2: 96, rr: 18, pulsePresent: true },
+        rationale: 'Atropine 0.02 mg/kg IV (minimum 0.1 mg, max single dose 0.5 mg in children) blocks vagal tone at the SA and AV nodes, increasing heart rate in post-ROSC bradycardia; it is indicated for symptomatic bradycardia unresponsive to oxygenation per PALS 2020 guidelines.',
+      },
+      intubation: {
+        duration_sec: 600,
+        priority: 100,
+        success_chance: 0.85,
+        success_state: { spo2: 97, rr: 16 },
+        rationale: 'Endotracheal intubation secures the airway and enables continuous compressions without ventilation pauses; confirmed by waveform capnography and bilateral breath sounds per PALS 2020 guidelines.',
+      },
+      transcutaneous_pacing_peds: {
+        duration_sec: 120,
+        priority: 95,
+        success_chance: 0.85,
+        success_state: { hr: 80, bp: '90/55', rhythm: 'Sinus', pulsePresent: true },
+        rationale: 'Transcutaneous pacing is the definitive treatment for atropine-refractory symptomatic bradycardia; it delivers electrical impulses externally, restoring an adequate heart rate per PALS 2020 guidelines.',
+      },
+      normal_saline_bolus_peds: {
+        duration_sec: 300,
+        priority: 75,
+        success_chance: 1,
+        state_overrides: { bp: '95/60' },
+        rationale: '10–20 mL/kg IV normal saline bolus supports post-arrest haemodynamics by restoring intravascular volume; fluid resuscitation is indicated for hypotension or signs of poor perfusion after ROSC per PALS 2020 guidelines.',
+      },
     },
-    success_conditions: arrestSuccess(30),
+    success_conditions: [
+      { vital: 'hr', min: 60, max: 120, durationSec: 30 },
+      { vital: 'rhythm', equals: 'Sinus', durationSec: 30 },
+      { vital: 'pulsePresent', equals: true, durationSec: 30 },
+    ],
     failure_conditions: [
       { vital: 'pulsePresent', equals: false, durationSec: 600 },
       { elapsedSecGte: 600 },
